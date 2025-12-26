@@ -1329,31 +1329,54 @@
     }
 
     // --- GitHub Gist ---
+    async function findExistingKanbanGist() {
+      // Search user's gists for one with kanban.json
+      const res = await fetch('https://api.github.com/gists?per_page=100', {
+        headers: { Authorization: `token ${SYNC.gistToken}` }
+      });
+      if (!res.ok) return null;
+      const gists = await res.json();
+      for (const gist of gists) {
+        if (gist.files['kanban.json'] && gist.description === 'Kanban Board Data') {
+          return gist.id;
+        }
+      }
+      return null;
+    }
+
     async function saveToGist() {
       if (!SYNC.gistToken) return;
       const content = JSON.stringify({ v: 3, cards: S.cards }, null, 2);
 
       if (!SYNC.gistId) {
-        // Create new gist
-        const res = await fetch('https://api.github.com/gists', {
-          method: 'POST',
-          headers: {
-            Authorization: `token ${SYNC.gistToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            description: 'Kanban Board Data',
-            public: false,
-            files: { 'kanban.json': { content } }
-          })
-        });
-        if (!res.ok) throw new Error('Failed to create gist');
-        const data = await res.json();
-        SYNC.gistId = data.id;
-        localStorage.setItem('sync_gist_id', data.id);
-      } else {
-        // Update existing gist
-        const res = await fetch(`https://api.github.com/gists/${SYNC.gistId}`, {
+        // First, check if a kanban gist already exists
+        const existingId = await findExistingKanbanGist();
+        if (existingId) {
+          SYNC.gistId = existingId;
+          localStorage.setItem('sync_gist_id', existingId);
+        } else {
+          // Create new gist
+          const res = await fetch('https://api.github.com/gists', {
+            method: 'POST',
+            headers: {
+              Authorization: `token ${SYNC.gistToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              description: 'Kanban Board Data',
+              public: false,
+              files: { 'kanban.json': { content } }
+            })
+          });
+          if (!res.ok) throw new Error('Failed to create gist');
+          const data = await res.json();
+          SYNC.gistId = data.id;
+          localStorage.setItem('sync_gist_id', data.id);
+          return; // Just created, no need to update
+        }
+      }
+      // Update existing gist
+      const res = await fetch(`https://api.github.com/gists/${SYNC.gistId}`, {
           method: 'PATCH',
           headers: {
             Authorization: `token ${SYNC.gistToken}`,
@@ -1868,27 +1891,42 @@
           statusEl.textContent = `Connected as ${user.login}`;
           statusEl.className = 'sync-status-line ok';
 
-          // If we have an existing gist, load from it
+          // If we have a local gist ID, try to load from it
           if (SYNC.gistId) {
             statusEl.textContent = 'Loading from gist...';
             const loaded = await loadFromGist();
             if (loaded) {
               render();
               statusEl.textContent = `Synced from gist (${user.login})`;
+              updateSyncStatus('synced');
             } else {
-              statusEl.textContent = `Connected - gist not found, creating...`;
+              // Local ID invalid, search for existing
               SYNC.gistId = null;
               localStorage.removeItem('sync_gist_id');
+            }
+          }
+
+          // No local gist ID - search for existing kanban gist
+          if (!SYNC.gistId) {
+            statusEl.textContent = 'Searching for existing gist...';
+            const existingId = await findExistingKanbanGist();
+            if (existingId) {
+              SYNC.gistId = existingId;
+              localStorage.setItem('sync_gist_id', existingId);
+              statusEl.textContent = 'Found existing gist, loading...';
+              const loaded = await loadFromGist();
+              if (loaded) {
+                render();
+                statusEl.textContent = `Synced from gist (${user.login})`;
+                updateSyncStatus('synced');
+              }
+            } else {
+              // No existing gist found - create new
+              statusEl.textContent = 'Creating gist...';
               await saveToGist();
               statusEl.textContent = `Gist created (${user.login})`;
               updateSyncStatus('synced');
             }
-          } else {
-            // No existing gist - create one now
-            statusEl.textContent = 'Creating gist...';
-            await saveToGist();
-            statusEl.textContent = `Gist created (${user.login})`;
-            updateSyncStatus('synced');
           }
         } else {
           statusEl.textContent = 'Invalid token';
