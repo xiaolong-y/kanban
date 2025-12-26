@@ -1867,20 +1867,35 @@
           const user = await res.json();
           statusEl.textContent = `Connected as ${user.login}`;
           statusEl.className = 'sync-status-line ok';
-          // Try to sync now
+
+          // If we have an existing gist, load from it
           if (SYNC.gistId) {
+            statusEl.textContent = 'Loading from gist...';
             const loaded = await loadFromGist();
             if (loaded) {
               render();
               statusEl.textContent = `Synced from gist (${user.login})`;
+            } else {
+              statusEl.textContent = `Connected - gist not found, creating...`;
+              SYNC.gistId = null;
+              localStorage.removeItem('sync_gist_id');
+              await saveToGist();
+              statusEl.textContent = `Gist created (${user.login})`;
+              updateSyncStatus('synced');
             }
+          } else {
+            // No existing gist - create one now
+            statusEl.textContent = 'Creating gist...';
+            await saveToGist();
+            statusEl.textContent = `Gist created (${user.login})`;
+            updateSyncStatus('synced');
           }
         } else {
           statusEl.textContent = 'Invalid token';
           statusEl.className = 'sync-status-line error';
         }
       } catch (e) {
-        statusEl.textContent = 'Connection failed';
+        statusEl.textContent = 'Failed: ' + e.message;
         statusEl.className = 'sync-status-line error';
       }
     }
