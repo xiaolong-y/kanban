@@ -1386,8 +1386,7 @@
             files: { 'kanban.json': { content } }
           })
         });
-        if (!res.ok) throw new Error('Failed to update gist');
-      }
+      if (!res.ok) throw new Error('Failed to update gist');
     }
 
     async function loadFromGist() {
