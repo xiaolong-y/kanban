@@ -1,0 +1,2119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kanban</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper: #FFFCF0;
+      --ink: #2D2B28;
+      --muted: #6F6E69;
+      --line: #DAD8CE;
+      --panel: #F2F0E5;
+      --blue: #205EA6;
+      --cyan: #24837B;
+      --green: #66800B;
+      --orange: #BC5215;
+      --red: #AF3029;
+      --purple: #5E409D;
+      --magenta: #A02F6F;
+
+      /* Priority colors - 600 series for light theme */
+      --pri-critical: #AF3029;
+      --pri-critical-bg: rgba(175, 48, 41, 0.15);
+      --pri-high: #BC5215;
+      --pri-high-bg: rgba(188, 82, 21, 0.12);
+      --pri-medium: #AD8301;
+      --pri-medium-bg: rgba(173, 131, 1, 0.10);
+      --pri-low: #205EA6;
+      --pri-low-bg: rgba(32, 94, 166, 0.08);
+      --pri-someday: #878580;
+      --pri-someday-bg: rgba(135, 133, 128, 0.06);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --paper: #100F0F;
+        --ink: #CECDC3;
+        --muted: #878580;
+        --line: #403E3C;
+        --panel: #1C1B1A;
+        --blue: #4385BE;
+        --cyan: #3AA99F;
+        --green: #879A39;
+        --orange: #DA702C;
+        --red: #D14D41;
+        --purple: #8B7EC8;
+        --magenta: #CE5D97;
+
+        /* Priority colors - 400 series for dark theme */
+        --pri-critical: #D14D41;
+        --pri-critical-bg: rgba(209, 77, 65, 0.18);
+        --pri-high: #DA702C;
+        --pri-high-bg: rgba(218, 112, 44, 0.15);
+        --pri-medium: #D0A215;
+        --pri-medium-bg: rgba(208, 162, 21, 0.12);
+        --pri-low: #4385BE;
+        --pri-low-bg: rgba(67, 133, 190, 0.10);
+        --pri-someday: #878580;
+        --pri-someday-bg: rgba(135, 133, 128, 0.08);
+      }
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font: 10.5px/1.5 'IBM Plex Mono', ui-monospace, monospace;
+      background: var(--paper);
+      color: var(--ink);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    #header {
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      border-bottom: 1px solid var(--line);
+      background: var(--paper);
+    }
+    #header h1 {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+    #filters {
+      display: flex;
+      gap: 2px;
+      flex: 1;
+      justify-content: center;
+    }
+    .filter-btn {
+      padding: 4px 10px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font: inherit;
+      font-size: 9px;
+      font-weight: 500;
+      color: var(--muted);
+      border-radius: 2px;
+      transition: all 0.1s ease;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      letter-spacing: 0.3px;
+    }
+    .filter-btn:hover { background: var(--panel); color: var(--ink); }
+    .filter-btn.active {
+      background: var(--ink);
+      color: var(--paper);
+    }
+    .filter-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 1px;
+    }
+    #help-btn {
+      width: 22px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: none;
+      border: 1px solid var(--line);
+      border-radius: 2px;
+      cursor: pointer;
+      font: inherit;
+      font-size: 10px;
+      color: var(--muted);
+      transition: all 0.1s ease;
+    }
+    #help-btn:hover { border-color: var(--ink); color: var(--ink); }
+    #chord {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 8px 16px;
+      background: var(--ink);
+      color: var(--paper);
+      border-radius: 2px;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      opacity: 0;
+      transition: opacity 0.1s ease;
+      z-index: 100;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    #chord.show { opacity: 1; }
+
+    /* BOARD LAYOUT - Inbox set aside */
+    #board {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      padding: 16px 24px;
+      overflow-x: auto;
+    }
+
+    /* Inbox zone - set aside to left with processing gate */
+    .col[data-col="inbox"] {
+      margin-right: 0;
+    }
+
+    /* ============================================
+       FLOW GATES - Push/Pull visualization
+       ============================================ */
+    #process-gate, #pull-gate {
+      width: 44px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 20px 0;
+      margin: 0 6px;
+      position: relative;
+    }
+    #process-gate::before, #pull-gate::before {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 6%;
+      bottom: 6%;
+      width: 1px;
+      background: repeating-linear-gradient(
+        to bottom,
+        var(--line) 0px,
+        var(--line) 3px,
+        transparent 3px,
+        transparent 10px
+      );
+      opacity: 0.5;
+    }
+
+    /* Unicode Arrow - elegant, minimal */
+    .gate-arrow {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 20px;
+      line-height: 1;
+      z-index: 1;
+      background: var(--paper);
+      padding: 4px;
+    }
+    .gate-arrow.right::before {
+      content: '›';
+      color: var(--blue);
+    }
+    .gate-arrow.left::before {
+      content: '‹';
+      color: var(--cyan);
+    }
+
+    /* Three Questions - positioned above arrow */
+    .gate-questions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: relative;
+      z-index: 1;
+      margin-bottom: 24px;
+    }
+    .gate-q {
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      font-size: 7px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      background: var(--paper);
+      padding: 4px 2px;
+    }
+    .gate-q:nth-child(1) { color: var(--pri-critical); }
+    .gate-q:nth-child(2) { color: var(--pri-high); }
+    .gate-q:nth-child(3) { color: var(--pri-medium); }
+    .col {
+      width: 250px;
+      min-width: 250px;
+      max-width: 250px;
+      display: flex;
+      flex-direction: column;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      position: relative;
+    }
+
+
+    /* NOW COLUMN - Visual emphasis */
+    .col[data-col="now"] {
+      width: 270px;
+      min-width: 270px;
+      max-width: 270px;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 1px var(--blue);
+    }
+    .col[data-col="now"] .col-head {
+      background: var(--blue);
+      color: var(--paper);
+      font-weight: 600;
+    }
+    .col[data-col="now"] .col-head .cnt {
+      background: var(--paper);
+      color: var(--blue);
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+    }
+
+    /* LATER - Slightly muted */
+    .col[data-col="later"] {
+      opacity: 0.75;
+    }
+    .col[data-col="later"]:hover {
+      opacity: 0.95;
+    }
+
+    /* DONE - Faded (completed work) */
+    .col[data-col="done"] {
+      opacity: 0.5;
+    }
+    .col[data-col="done"]:hover {
+      opacity: 0.85;
+    }
+    .col-head {
+      padding: 10px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 9px;
+      font-weight: 500;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-bottom: 1px solid var(--line);
+    }
+    .col-cards {
+      flex: 1;
+      padding: 6px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .col.focused { border-color: var(--blue); }
+    .col.focused .col-head { color: var(--ink); }
+
+    /* Drop target styling */
+    .col.drop {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 2px rgba(32,94,166,0.15);
+    }
+    .col.drop .col-cards {
+      background: rgba(32,94,166,0.03);
+    }
+    .col.drop .col-head {
+      background: rgba(32,94,166,0.08);
+    }
+
+    /* Drop indicator line */
+    .drop-indicator {
+      height: 2px;
+      background: var(--blue);
+      border-radius: 1px;
+      margin: 2px 0;
+      animation: pulse 1s ease infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+
+    /* WIP LIMIT WARNINGS */
+    .col.wip-warn .col-head {
+      background: var(--pri-high-bg);
+    }
+    .col.wip-warn .cnt {
+      background: var(--pri-high);
+      color: white;
+      padding: 1px 5px;
+      border-radius: 2px;
+    }
+    .col.wip-over .col-head {
+      background: var(--pri-critical);
+      color: white;
+    }
+    .col.wip-over .cnt {
+      background: white;
+      color: var(--pri-critical);
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+    }
+    .wip-limit {
+      font-size: 8px;
+      opacity: 0.6;
+      margin-left: 4px;
+    }
+
+    /* INBOX AGING INDICATORS */
+    .card.age-warn {
+      border-top: 2px solid var(--pri-high);
+    }
+    .card.age-warn::before {
+      content: '3d+';
+      position: absolute;
+      top: 2px;
+      right: 4px;
+      font-size: 7px;
+      color: var(--pri-high);
+      font-weight: 600;
+    }
+    .card.age-crit {
+      border-top: 2px solid var(--pri-critical);
+      animation: urgentPulse 2s ease infinite;
+    }
+    .card.age-crit::before {
+      content: '7d+';
+      position: absolute;
+      top: 2px;
+      right: 4px;
+      font-size: 7px;
+      color: var(--pri-critical);
+      font-weight: 600;
+    }
+    @keyframes urgentPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(175, 48, 41, 0); }
+      50% { box-shadow: 0 0 0 2px rgba(175, 48, 41, 0.2); }
+    }
+
+    /* DONE ARCHIVE INDICATOR */
+    .card.archived {
+      opacity: 0.4;
+      filter: grayscale(0.5);
+    }
+    .archive-toggle {
+      font-size: 8px;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 4px 8px;
+      border: 1px dashed var(--line);
+      border-radius: 2px;
+      margin-top: 4px;
+      text-align: center;
+    }
+    .archive-toggle:hover {
+      background: var(--panel);
+    }
+
+    /* CARD - Clean, crisp design */
+    .card {
+      padding: 8px 10px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 2px;
+      cursor: grab;
+      transition: all 0.1s ease;
+      position: relative;
+      min-height: 36px;
+    }
+
+    /* EFFORT-BASED SIZING - Subtle but clear */
+    .card[data-eff="15m"] {
+      min-height: 32px;
+      padding: 6px 8px;
+    }
+    .card[data-eff="1h"] {
+      min-height: 40px;
+      padding: 8px 10px;
+    }
+    .card[data-eff="4h"] {
+      min-height: 56px;
+      padding: 10px 12px;
+    }
+    .card[data-eff="1d"] {
+      min-height: 72px;
+      padding: 12px 14px;
+    }
+    .card[data-eff="3d"] {
+      min-height: 92px;
+      padding: 14px 16px;
+    }
+    .card[data-eff="1w"] {
+      min-height: 112px;
+      padding: 16px 18px;
+    }
+
+    /* PRIORITY-BASED STYLING - Color encoding */
+    .card[data-pri="critical"] {
+      background: var(--pri-critical-bg);
+      border-left: 3px solid var(--pri-critical);
+    }
+    .card[data-pri="high"] {
+      background: var(--pri-high-bg);
+      border-left: 3px solid var(--pri-high);
+    }
+    .card[data-pri="medium"] {
+      background: var(--pri-medium-bg);
+      border-left: 3px solid var(--pri-medium);
+    }
+    .card[data-pri="low"] {
+      background: var(--pri-low-bg);
+      border-left: 2px solid var(--pri-low);
+    }
+    .card[data-pri="someday"] {
+      background: var(--pri-someday-bg);
+      border-left: 2px solid var(--pri-someday);
+      opacity: 0.7;
+    }
+
+    .card:hover {
+      border-color: var(--muted);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      transform: translateY(-1px);
+    }
+    .card:focus, .card.sel {
+      outline: none;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 1px var(--blue);
+    }
+    /* Elegant drag effect */
+    .card.drag {
+      opacity: 0.85;
+      transform: scale(1.02) rotate(1deg);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+      cursor: grabbing;
+      z-index: 100;
+    }
+    .card.drag-ghost {
+      opacity: 0.3;
+      transform: scale(0.98);
+    }
+
+    .card-title {
+      font-size: 10px;
+      line-height: 1.4;
+      font-weight: 500;
+      color: var(--ink);
+    }
+
+    /* Title scales with effort */
+    .card[data-eff="15m"] .card-title { font-size: 9px; }
+    .card[data-eff="1h"] .card-title { font-size: 10px; }
+    .card[data-eff="4h"] .card-title { font-size: 10px; }
+    .card[data-eff="1d"] .card-title { font-size: 11px; }
+    .card[data-eff="3d"] .card-title { font-size: 11px; font-weight: 600; }
+    .card[data-eff="1w"] .card-title { font-size: 12px; font-weight: 600; }
+
+    .card-meta {
+      margin-top: 6px;
+      font-size: 8px;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    /* Priority badge - minimal */
+    .card-pri {
+      padding: 2px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-size: 7px;
+    }
+    .card[data-pri="critical"] .card-pri { background: var(--pri-critical); color: white; }
+    .card[data-pri="high"] .card-pri { background: var(--pri-high); color: white; }
+    .card[data-pri="medium"] .card-pri { background: var(--pri-medium); color: white; }
+    .card[data-pri="low"] .card-pri { background: var(--pri-low); color: white; }
+    .card[data-pri="someday"] .card-pri { background: var(--pri-someday); color: white; }
+
+    /* Effort badge - subtle */
+    .card-eff {
+      padding: 2px 5px;
+      background: var(--panel);
+      color: var(--muted);
+      border-radius: 2px;
+      font-weight: 500;
+      font-size: 8px;
+    }
+
+    .card.edit .card-title {
+      outline: none;
+      background: var(--panel);
+      padding: 2px 4px;
+      margin: -2px -4px;
+      border-radius: 2px;
+    }
+    .add {
+      padding: 8px 10px;
+      border: 2px dashed var(--blue);
+      border-radius: 4px;
+      background: rgba(32, 94, 166, 0.03);
+    }
+    .add input {
+      width: 100%;
+      border: none;
+      background: none;
+      font: inherit;
+      color: var(--ink);
+      outline: none;
+    }
+    .add input::placeholder { color: var(--muted); }
+    #help {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      backdrop-filter: blur(2px);
+    }
+    #help.hide { display: none; }
+    .help-box {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      padding: 20px 24px;
+      max-width: 420px;
+      font-size: 9px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    }
+    .help-box h2 { font-size: 10px; font-weight: 600; margin-bottom: 12px; border-bottom: 1px solid var(--line); padding-bottom: 10px; letter-spacing: 1px; text-transform: uppercase; }
+    .help-box h3 { font-size: 8px; color: var(--muted); margin: 12px 0 6px; text-transform: uppercase; letter-spacing: 1px; font-weight: 500; }
+    .help-box table { width: 100%; }
+    .help-box td { padding: 3px 0; }
+    .help-box td:first-child { color: var(--muted); width: 45%; }
+    .help-box kbd {
+      display: inline-block;
+      padding: 2px 5px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 2px;
+      font: inherit;
+      font-size: 8px;
+      font-weight: 500;
+    }
+
+    /* SYNC STATUS */
+    .sync-status {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      cursor: pointer;
+    }
+    .sync-status.synced { background: var(--green); }
+    .sync-status.syncing { background: var(--blue); animation: pulse 1s infinite; }
+    .sync-status.error { background: var(--red); }
+
+    /* SETTINGS MODAL */
+    #settings {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      backdrop-filter: blur(2px);
+    }
+    #settings.hide { display: none; }
+    .settings-box {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      padding: 20px 24px;
+      width: 320px;
+      max-width: 90vw;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    }
+    .settings-box h2 {
+      font-size: 10px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .setting-group {
+      margin-bottom: 16px;
+    }
+    .setting-group.hide { display: none; }
+    .setting-group label {
+      display: block;
+      font-size: 9px;
+      font-weight: 500;
+      margin-bottom: 6px;
+      color: var(--muted);
+    }
+    .setting-group label .hint {
+      font-weight: 400;
+      opacity: 0.7;
+    }
+    .setting-group select,
+    .setting-group input {
+      width: 100%;
+      padding: 8px 10px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 2px;
+      font: inherit;
+      font-size: 10px;
+      color: var(--ink);
+    }
+    .setting-group select:focus,
+    .setting-group input:focus {
+      outline: none;
+      border-color: var(--blue);
+    }
+    .setting-hint {
+      font-size: 8px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .setting-actions {
+      display: flex;
+      gap: 8px;
+      margin: 16px 0;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+    }
+    .setting-actions button {
+      flex: 1;
+      padding: 8px 12px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 2px;
+      font: inherit;
+      font-size: 9px;
+      cursor: pointer;
+      transition: all 0.1s;
+    }
+    .setting-actions button:hover {
+      background: var(--ink);
+      color: var(--paper);
+    }
+    .setting-footer {
+      font-size: 8px;
+      color: var(--muted);
+      text-align: center;
+      margin-top: 12px;
+    }
+    .setting-footer kbd {
+      display: inline-block;
+      padding: 1px 4px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 2px;
+      font: inherit;
+      font-size: 8px;
+    }
+
+    /* Settings Tabs */
+    .settings-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 8px;
+    }
+    .settings-tab {
+      padding: 6px 12px;
+      background: none;
+      border: 1px solid var(--line);
+      border-radius: 2px;
+      font: inherit;
+      font-size: 9px;
+      font-weight: 500;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.1s;
+    }
+    .settings-tab:hover { color: var(--ink); }
+    .settings-tab.active {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink);
+    }
+    .tab-content.hide { display: none; }
+
+    /* Setup Guide */
+    .setup-guide h3 {
+      font-size: 9px;
+      font-weight: 600;
+      color: var(--blue);
+      margin: 12px 0 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .setup-guide h3:first-child { margin-top: 0; }
+    .setup-steps {
+      margin: 0 0 12px 18px;
+      font-size: 9px;
+      line-height: 1.6;
+    }
+    .setup-steps li { margin: 4px 0; }
+    .setup-steps code {
+      background: var(--panel);
+      padding: 1px 4px;
+      border-radius: 2px;
+      font-size: 8px;
+    }
+    .setup-steps a {
+      color: var(--blue);
+      text-decoration: none;
+    }
+    .setup-steps a:hover { text-decoration: underline; }
+    .setup-note {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--green);
+      padding: 8px 10px;
+      font-size: 8px;
+      border-radius: 2px;
+    }
+    .sync-status-line {
+      font-size: 8px;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+    .sync-status-line.ok { color: var(--green); }
+    .sync-status-line.error { color: var(--red); }
+
+    /* TABLET */
+    @media (max-width: 1024px) {
+      .col { width: 220px; min-width: 220px; max-width: 220px; }
+      .col[data-col="now"] { width: 240px; min-width: 240px; max-width: 240px; }
+      #process-gate, #pull-gate { width: 36px; margin: 0 4px; }
+      .gate-arrow { font-size: 18px; }
+      .gate-q { font-size: 6px; }
+    }
+
+    /* MOBILE */
+    @media (max-width: 768px) {
+      body { font-size: 12px; }
+
+      #header {
+        padding: 12px 16px;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      #header h1 { font-size: 11px; }
+      #filters { display: none; }
+      #help-btn { width: 28px; height: 28px; font-size: 12px; }
+
+      #board {
+        padding: 12px;
+        gap: 0;
+        justify-content: flex-start;
+        scroll-snap-type: x mandatory;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .col {
+        width: 85vw;
+        min-width: 85vw;
+        max-width: 85vw;
+        scroll-snap-align: center;
+        flex-shrink: 0;
+        margin-right: 12px;
+      }
+      .col[data-col="now"] {
+        width: 85vw;
+        min-width: 85vw;
+        max-width: 85vw;
+      }
+      .col[data-col="inbox"] { margin-right: 12px; }
+      .col[data-col="later"] { opacity: 1; }
+      .col[data-col="done"] { opacity: 0.7; }
+
+      /* Hide flow gates on mobile */
+      #process-gate, #pull-gate { display: none; }
+
+      .col-head {
+        padding: 14px 16px;
+        font-size: 11px;
+      }
+      .col-cards {
+        padding: 10px;
+        gap: 8px;
+      }
+
+      /* Larger touch targets for cards */
+      .card {
+        padding: 14px 16px;
+        min-height: 54px;
+        border-radius: 4px;
+        cursor: pointer;
+        /* Disable text selection on touch */
+        -webkit-user-select: none;
+        user-select: none;
+        /* Touch feedback */
+        -webkit-tap-highlight-color: transparent;
+      }
+      .card:active {
+        transform: scale(0.98);
+        opacity: 0.9;
+      }
+
+      .card[data-eff="15m"] { min-height: 48px; padding: 12px 14px; }
+      .card[data-eff="1h"] { min-height: 54px; }
+      .card[data-eff="4h"] { min-height: 68px; }
+      .card[data-eff="1d"] { min-height: 84px; }
+      .card[data-eff="3d"] { min-height: 100px; }
+      .card[data-eff="1w"] { min-height: 120px; }
+
+      .card-title {
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .card[data-eff="3d"] .card-title,
+      .card[data-eff="1w"] .card-title {
+        font-size: 14px;
+      }
+
+      .card-meta {
+        margin-top: 8px;
+        gap: 8px;
+      }
+      .card-pri {
+        font-size: 9px;
+        padding: 3px 7px;
+      }
+      .card-eff {
+        font-size: 10px;
+        padding: 3px 7px;
+      }
+
+      /* Mobile quick add */
+      .add {
+        padding: 14px 16px;
+      }
+      .add input {
+        font-size: 14px;
+      }
+
+      /* Chord indicator larger on mobile */
+      #chord {
+        bottom: 20px;
+        padding: 12px 20px;
+        font-size: 12px;
+      }
+
+      /* Help box full width on mobile */
+      .help-box {
+        max-width: 90vw;
+        max-height: 80vh;
+        overflow-y: auto;
+        font-size: 11px;
+      }
+      .help-box h2 { font-size: 12px; }
+      .help-box h3 { font-size: 10px; }
+      .help-box kbd { font-size: 10px; padding: 3px 6px; }
+      .help-box td { padding: 5px 0; }
+    }
+
+    /* SMALL MOBILE */
+    @media (max-width: 400px) {
+      .col {
+        width: 90vw;
+        min-width: 90vw;
+        max-width: 90vw;
+      }
+      .col[data-col="now"] {
+        width: 90vw;
+        min-width: 90vw;
+        max-width: 90vw;
+      }
+    }
+
+    /* Mobile FAB (Floating Action Button) */
+    #mobile-fab {
+      display: none;
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--blue);
+      color: white;
+      border: none;
+      font-size: 28px;
+      font-weight: 300;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(32, 94, 166, 0.4);
+      z-index: 90;
+      transition: all 0.2s ease;
+    }
+    #mobile-fab:active {
+      transform: scale(0.95);
+    }
+    @media (max-width: 768px) {
+      #mobile-fab { display: flex; align-items: center; justify-content: center; }
+    }
+
+    /* Mobile card action bar */
+    #mobile-actions {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--panel);
+      border-top: 1px solid var(--line);
+      padding: 12px 16px;
+      z-index: 95;
+      gap: 8px;
+      justify-content: space-around;
+    }
+    #mobile-actions.show { display: flex; }
+    .mobile-action-btn {
+      flex: 1;
+      padding: 12px 8px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      font: inherit;
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--ink);
+      cursor: pointer;
+      text-align: center;
+    }
+    .mobile-action-btn:active {
+      background: var(--panel);
+    }
+    .mobile-action-btn.move-left { border-color: var(--muted); }
+    .mobile-action-btn.move-right { border-color: var(--blue); color: var(--blue); }
+    .mobile-action-btn.delete { border-color: var(--pri-critical); color: var(--pri-critical); }
+
+    /* Touch drag ghost */
+    .touch-drag-ghost {
+      position: fixed;
+      pointer-events: none;
+      z-index: 1000;
+      opacity: 0.9;
+      transform: scale(1.05) rotate(2deg);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.2);
+    }
+  </style>
+</head>
+<body>
+  <header id="header">
+    <h1>Kanban</h1>
+    <div id="filters"></div>
+    <span id="sync-status" class="sync-status" title="Local only"></span>
+    <button id="help-btn">?</button>
+  </header>
+  <main id="board">
+    <div class="col" data-col="inbox"><div class="col-head"><span>Inbox</span><span class="cnt">0</span></div><div class="col-cards"></div></div>
+    <div id="process-gate">
+      <span class="gate-arrow right"></span>
+    </div>
+    <div class="col" data-col="now"><div class="col-head"><span>Now</span><span class="cnt">0</span></div><div class="col-cards"></div></div>
+    <div id="pull-gate">
+      <span class="gate-arrow left"></span>
+    </div>
+    <div class="col" data-col="next"><div class="col-head"><span>Next</span><span class="cnt">0</span></div><div class="col-cards"></div></div>
+    <div class="col" data-col="later"><div class="col-head"><span>Later</span><span class="cnt">0</span></div><div class="col-cards"></div></div>
+    <div class="col" data-col="done"><div class="col-head"><span>Done</span><span class="cnt">0</span></div><div class="col-cards"></div></div>
+  </main>
+  <div id="chord"></div>
+  <div id="help" class="hide"></div>
+  <div id="settings" class="hide">
+    <div class="settings-box">
+      <div class="settings-tabs">
+        <button class="settings-tab active" data-tab="sync">Sync</button>
+        <button class="settings-tab" data-tab="setup">Setup Guide</button>
+      </div>
+
+      <div id="tab-sync" class="tab-content">
+        <div class="setting-group">
+          <label>Sync Method</label>
+          <select id="sync-method">
+            <option value="local">Local only (localStorage)</option>
+            <option value="file">File (Dropbox/iCloud/GDrive folder)</option>
+            <option value="gist">GitHub Gist</option>
+          </select>
+        </div>
+        <div id="gist-settings" class="setting-group hide">
+          <label>GitHub Token <span class="hint">(gist scope)</span></label>
+          <input type="password" id="gist-token" placeholder="ghp_...">
+          <p class="setting-hint"><a href="https://github.com/settings/tokens/new?scopes=gist&description=Kanban%20Sync" target="_blank">Create token with gist scope</a></p>
+          <div id="gist-status" class="sync-status-line"></div>
+        </div>
+        <div id="file-settings" class="setting-group hide">
+          <button id="pick-file-btn">Choose Sync File...</button>
+          <p class="setting-hint" id="file-status">No file selected</p>
+        </div>
+        <div class="setting-actions">
+          <button id="export-btn">Export JSON</button>
+          <button id="import-btn">Import JSON</button>
+        </div>
+      </div>
+
+      <div id="tab-setup" class="tab-content hide">
+        <div class="setup-guide">
+          <h3>Host on GitHub Pages (Free)</h3>
+          <ol class="setup-steps">
+            <li>Create a new repo on <a href="https://github.com/new" target="_blank">GitHub</a></li>
+            <li>Push this HTML file to the repo</li>
+            <li>Go to repo Settings → Pages</li>
+            <li>Set Source to "Deploy from branch" → main</li>
+            <li>Your app: <code>username.github.io/repo</code></li>
+          </ol>
+
+          <h3>Sync Data with Gist</h3>
+          <ol class="setup-steps">
+            <li><a href="https://github.com/settings/tokens/new?scopes=gist&description=Kanban%20Sync" target="_blank">Create a token</a> with <code>gist</code> scope</li>
+            <li>Paste token in Sync tab above</li>
+            <li>Data syncs to a private Gist automatically</li>
+            <li>Use same token on other devices</li>
+          </ol>
+
+          <div class="setup-note">
+            <strong>Privacy:</strong> Your data stays in your GitHub account. No third-party servers.
+          </div>
+        </div>
+      </div>
+
+      <p class="setting-footer">Press <kbd>s</kbd> or <kbd>Esc</kbd> to close</p>
+    </div>
+  </div>
+  <button id="mobile-fab">+</button>
+  <div id="mobile-actions">
+    <button class="mobile-action-btn move-left">← Left</button>
+    <button class="mobile-action-btn move-right">Right →</button>
+    <button class="mobile-action-btn delete">Delete</button>
+  </div>
+  <script>
+    const COLS = ['inbox', 'now', 'next', 'later', 'done'];
+    const PRIS = {
+      critical: 'CRITICAL',
+      high: 'HIGH',
+      medium: 'MEDIUM',
+      low: 'LOW',
+      someday: 'SOMEDAY'
+    };
+    const PRI_LABELS = {
+      critical: 'CRITICAL',
+      high: 'HIGH',
+      medium: 'MEDIUM',
+      low: 'LOW',
+      someday: 'SOMEDAY'
+    };
+
+    // ============================================
+    // KANBAN RULES & LIMITS
+    // ============================================
+    const RULES = {
+      // WIP Limits (Work In Progress)
+      WIP_LIMITS: {
+        inbox: 10,    // Inbox should trend to empty - warn at 10
+        now: 5,       // Focus! Sweet spot is 3-5 items
+        next: 10,     // Planned work buffer
+        later: null,  // No limit on backlog
+        done: null    // No limit (auto-archives)
+      },
+      // Inbox aging thresholds (milliseconds)
+      INBOX_WARN_AGE: 3 * 24 * 60 * 60 * 1000,  // 3 days - yellow warning
+      INBOX_CRIT_AGE: 7 * 24 * 60 * 60 * 1000,  // 7 days - red critical
+      // Done auto-archive (hide items older than X)
+      DONE_ARCHIVE_AGE: 7 * 24 * 60 * 60 * 1000,  // 7 days
+      // Show archived toggle
+      showArchived: false
+    };
+
+    // Priority weight for sorting (higher = floats to top)
+    const PRI_WEIGHT = { critical: 5, high: 4, medium: 3, low: 2, someday: 1 };
+    // Effort weight for secondary sorting
+    const EFF_WEIGHT = { '1w': 6, '3d': 5, '1d': 4, '4h': 3, '1h': 2, '15m': 1, null: 0 };
+
+    const S = { cards: [], filters: [], col: 0, card: null, chord: null };
+
+    const uuid = () => crypto.randomUUID();
+    const cards = col => S.cards.filter(c => c.col === col).sort((a, b) => {
+      // Sort by priority weight DESC first
+      const pA = PRI_WEIGHT[a.pri] || 0;
+      const pB = PRI_WEIGHT[b.pri] || 0;
+      if (pB !== pA) return pB - pA;
+      // Then by effort weight DESC
+      const wA = EFF_WEIGHT[a.eff] || 0;
+      const wB = EFF_WEIGHT[b.eff] || 0;
+      if (wB !== wA) return wB - wA;
+      // Then by order
+      return a.ord - b.ord;
+    });
+    const visible = col => { let c = cards(col); return S.filters.length ? c.filter(x => S.filters.includes(x.pri)) : c; };
+    const reorder = col => cards(col).forEach((c, i) => c.ord = i);
+
+    function add(title, col = 'inbox', pri = 'medium', eff = null) {
+      const c = { id: uuid(), title: title.trim(), col, pri, eff, ord: cards(col).length, ts: Date.now() };
+      S.cards.push(c);
+      return c;
+    }
+
+    function upd(id, data) {
+      const c = S.cards.find(x => x.id === id);
+      if (c) { Object.assign(c, data, { ts: Date.now() }); save(); render(); }
+    }
+
+    function del(id) {
+      const i = S.cards.findIndex(x => x.id === id);
+      if (i >= 0) { const col = S.cards[i].col; S.cards.splice(i, 1); reorder(col); save(); render(); }
+    }
+
+    function move(id, toCol, toIdx = null) {
+      const c = S.cards.find(x => x.id === id);
+      if (!c) return;
+      const from = c.col;
+      c.col = toCol;
+      c.ts = Date.now();
+      reorder(from);
+      const cc = cards(toCol).filter(x => x.id !== id);
+      if (toIdx !== null && toIdx < cc.length) { cc.splice(toIdx, 0, c); cc.forEach((x, i) => x.ord = i); }
+      else c.ord = cc.length;
+      save();
+      render();
+    }
+
+    const KEY = 'kanban_v3';
+    const save = () => {
+      localStorage.setItem(KEY, JSON.stringify({ v: 3, cards: S.cards }));
+      scheduleSyncSave();
+    };
+    const load = () => {
+      try {
+        const d = JSON.parse(localStorage.getItem(KEY));
+        if (d?.v === 3) S.cards = d.cards || [];
+      } catch {}
+    };
+
+    // ============================================
+    // SYNC LAYER
+    // ============================================
+    const SYNC = {
+      method: localStorage.getItem('sync_method') || 'local', // 'local' | 'file' | 'gist'
+      fileHandle: null,
+      gistId: localStorage.getItem('sync_gist_id'),
+      gistToken: localStorage.getItem('sync_gist_token'),
+      lastSync: null,
+      dirty: false,
+      debounceTimer: null
+    };
+
+    function scheduleSyncSave() {
+      SYNC.dirty = true;
+      if (SYNC.debounceTimer) clearTimeout(SYNC.debounceTimer);
+      SYNC.debounceTimer = setTimeout(() => syncSave(), 5000);
+    }
+
+    async function syncSave() {
+      if (!SYNC.dirty) return;
+      try {
+        if (SYNC.method === 'file' && SYNC.fileHandle) {
+          await saveToFile();
+        } else if (SYNC.method === 'gist' && SYNC.gistToken) {
+          await saveToGist();
+        }
+        SYNC.dirty = false;
+        SYNC.lastSync = Date.now();
+        updateSyncStatus('synced');
+      } catch (e) {
+        console.error('Sync save failed:', e);
+        updateSyncStatus('error');
+      }
+    }
+
+    function updateSyncStatus(status) {
+      const el = document.getElementById('sync-status');
+      if (!el) return;
+      el.className = 'sync-status ' + status;
+      el.title = status === 'synced' ? 'Synced' : status === 'error' ? 'Sync error' : 'Syncing...';
+    }
+
+    // --- Manual Export/Import ---
+    function exportJSON() {
+      const data = { v: 3, cards: S.cards, exported: new Date().toISOString() };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `kanban-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function importJSON() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json';
+      input.onchange = async e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+          const text = await file.text();
+          const data = JSON.parse(text);
+          if (data.v === 3 && Array.isArray(data.cards)) {
+            S.cards = data.cards;
+            save();
+            render();
+            alert(`Imported ${data.cards.length} cards`);
+          } else {
+            alert('Invalid kanban file format');
+          }
+        } catch (err) {
+          alert('Failed to import: ' + err.message);
+        }
+      };
+      input.click();
+    }
+
+    // --- File System API ---
+    async function requestFileHandle() {
+      if (!window.showSaveFilePicker) {
+        alert('File System API not supported. Use Chrome or Edge.');
+        return;
+      }
+      try {
+        SYNC.fileHandle = await window.showSaveFilePicker({
+          suggestedName: 'kanban.json',
+          types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
+        });
+        SYNC.method = 'file';
+        localStorage.setItem('sync_method', 'file');
+        await saveToFile();
+        alert('File linked! Data will auto-sync.');
+      } catch (e) {
+        if (e.name !== 'AbortError') console.error(e);
+      }
+    }
+
+    async function saveToFile() {
+      if (!SYNC.fileHandle) return;
+      const writable = await SYNC.fileHandle.createWritable();
+      await writable.write(JSON.stringify({ v: 3, cards: S.cards }, null, 2));
+      await writable.close();
+    }
+
+    async function loadFromFile() {
+      if (!SYNC.fileHandle) return false;
+      try {
+        const file = await SYNC.fileHandle.getFile();
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (data.v === 3 && Array.isArray(data.cards)) {
+          S.cards = data.cards;
+          localStorage.setItem(KEY, JSON.stringify({ v: 3, cards: S.cards }));
+          return true;
+        }
+      } catch (e) {
+        console.error('Load from file failed:', e);
+      }
+      return false;
+    }
+
+    // --- GitHub Gist ---
+    async function findExistingKanbanGist() {
+      // Search user's gists for one with kanban.json
+      const res = await fetch('https://api.github.com/gists?per_page=100', {
+        headers: { Authorization: `token ${SYNC.gistToken}` }
+      });
+      if (!res.ok) return null;
+      const gists = await res.json();
+      for (const gist of gists) {
+        if (gist.files['kanban.json'] && gist.description === 'Kanban Board Data') {
+          return gist.id;
+        }
+      }
+      return null;
+    }
+
+    async function saveToGist() {
+      if (!SYNC.gistToken) return;
+      const content = JSON.stringify({ v: 3, cards: S.cards }, null, 2);
+
+      if (!SYNC.gistId) {
+        // First, check if a kanban gist already exists
+        const existingId = await findExistingKanbanGist();
+        if (existingId) {
+          SYNC.gistId = existingId;
+          localStorage.setItem('sync_gist_id', existingId);
+        } else {
+          // Create new gist
+          const res = await fetch('https://api.github.com/gists', {
+            method: 'POST',
+            headers: {
+              Authorization: `token ${SYNC.gistToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              description: 'Kanban Board Data',
+              public: false,
+              files: { 'kanban.json': { content } }
+            })
+          });
+          if (!res.ok) throw new Error('Failed to create gist');
+          const data = await res.json();
+          SYNC.gistId = data.id;
+          localStorage.setItem('sync_gist_id', data.id);
+          return; // Just created, no need to update
+        }
+      }
+      // Update existing gist
+      const res = await fetch(`https://api.github.com/gists/${SYNC.gistId}`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `token ${SYNC.gistToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            files: { 'kanban.json': { content } }
+          })
+        });
+      if (!res.ok) throw new Error('Failed to update gist');
+    }
+
+    async function loadFromGist() {
+      if (!SYNC.gistToken || !SYNC.gistId) return false;
+      try {
+        const res = await fetch(`https://api.github.com/gists/${SYNC.gistId}`, {
+          headers: { Authorization: `token ${SYNC.gistToken}` }
+        });
+        if (!res.ok) return false;
+        const gist = await res.json();
+        const content = gist.files['kanban.json']?.content;
+        if (!content) return false;
+        const data = JSON.parse(content);
+        if (data.v === 3 && Array.isArray(data.cards)) {
+          S.cards = data.cards;
+          localStorage.setItem(KEY, JSON.stringify({ v: 3, cards: S.cards }));
+          return true;
+        }
+      } catch (e) {
+        console.error('Load from gist failed:', e);
+      }
+      return false;
+    }
+
+    function setGistToken(token) {
+      SYNC.gistToken = token;
+      SYNC.method = 'gist';
+      localStorage.setItem('sync_gist_token', token);
+      localStorage.setItem('sync_method', 'gist');
+    }
+
+    function seedDemo() {
+      // INBOX - Fresh captures, unsorted
+      add('Read "Thinking in Systems" book', 'inbox', 'medium', '3d');
+      add('Book dentist appointment', 'inbox', 'low', '15m');
+      add('Reply to Prof. Chen thesis feedback', 'inbox', 'high', '1h');
+      add('Check passport renewal', 'inbox', 'low', '15m');
+      add('Mom birthday gift ideas', 'inbox', 'medium', '1h');
+
+      // NOW - Active work, priority sorted
+      add('Anthropic application - DEADLINE TODAY', 'now', 'critical', '4h');
+      add('CS229 Problem Set 3 - due tomorrow', 'now', 'critical', '1d');
+      add('Jane Street phone screen prep', 'now', 'high', '4h');
+      add('File Q4 estimated taxes', 'now', 'high', '1h');
+      add('Gym session', 'now', 'medium', '1h');
+      add('Dinner with Alex', 'now', 'low', '15m');
+
+      // NEXT - Planned
+      add('OpenAI Residency essay', 'next', 'high', '1d');
+      add('Build transformer from scratch', 'next', 'medium', '1w');
+      add('Midterm - Statistical Learning', 'next', 'critical', '3d');
+      add('Annual physical checkup', 'next', 'medium', '1h');
+      add('Rebalance 401k', 'next', 'low', '1h');
+      add('Call grandparents', 'next', 'medium', '15m');
+      add('DMV - drivers license renewal', 'next', 'high', '4h');
+
+      // LATER - Backlog
+      add('Learn Rust programming', 'later', 'someday', '1w');
+      add('Knowledge graph side project', 'later', 'someday', '1w');
+      add('Tax-loss harvesting review', 'later', 'low', '4h');
+      add('Research PhD programs', 'later', 'medium', '3d');
+      add('Marathon training plan', 'later', 'someday', '1w');
+      add('Reconnect with college friends', 'later', 'low', '1h');
+      add('Citadel application', 'later', 'high', '1d');
+
+      // DONE - Completed
+      add('Google Research app', 'done', 'high', '1d');
+      add('CS231n Assignment 2', 'done', 'critical', '1d');
+      add('Update LinkedIn', 'done', 'medium', '1h');
+      add('Flu shot', 'done', 'low', '15m');
+      add('Setup Roth IRA', 'done', 'medium', '1h');
+
+      save();
+    }
+
+    function render() {
+      const now = Date.now();
+
+      COLS.forEach(col => {
+        const colEl = document.querySelector(`.col[data-col="${col}"]`);
+        const cont = colEl.querySelector('.col-cards');
+        let list = visible(col);
+
+        // Apply archive filter for done column
+        let archivedCount = 0;
+        if (col === 'done' && !RULES.showArchived) {
+          const archived = list.filter(c => (now - c.ts) > RULES.DONE_ARCHIVE_AGE);
+          archivedCount = archived.length;
+          list = list.filter(c => (now - c.ts) <= RULES.DONE_ARCHIVE_AGE);
+        }
+
+        cont.innerHTML = '';
+        list.forEach(c => {
+          const el = document.createElement('div');
+          el.className = 'card' + (S.card === c.id ? ' sel' : '');
+          el.dataset.id = c.id;
+          el.dataset.pri = c.pri;
+          if (c.eff) el.dataset.eff = c.eff;
+
+          // Inbox aging classes
+          if (col === 'inbox') {
+            const age = now - c.ts;
+            if (age > RULES.INBOX_CRIT_AGE) el.classList.add('age-crit');
+            else if (age > RULES.INBOX_WARN_AGE) el.classList.add('age-warn');
+          }
+
+          el.draggable = true;
+          el.tabIndex = 0;
+          el.innerHTML = `
+            <div class="card-title">${esc(c.title)}</div>
+            <div class="card-meta">
+              <span class="card-pri">${PRI_LABELS[c.pri] || 'MEDIUM'}</span>
+              ${c.eff ? `<span class="card-eff">${c.eff}</span>` : ''}
+            </div>
+          `;
+          cont.appendChild(el);
+        });
+
+        // Archive toggle for done column
+        if (col === 'done' && archivedCount > 0) {
+          const toggle = document.createElement('div');
+          toggle.className = 'archive-toggle';
+          toggle.textContent = RULES.showArchived
+            ? 'Hide archived'
+            : `Show ${archivedCount} archived`;
+          toggle.onclick = () => { RULES.showArchived = !RULES.showArchived; render(); };
+          cont.appendChild(toggle);
+        }
+
+        // Update count with WIP limit
+        const count = cards(col).length;
+        const limit = RULES.WIP_LIMITS[col];
+        const cntEl = colEl.querySelector('.cnt');
+
+        if (limit) {
+          cntEl.innerHTML = `${count}<span class="wip-limit">/${limit}</span>`;
+          // WIP warning classes
+          colEl.classList.remove('wip-warn', 'wip-over');
+          if (count > limit) colEl.classList.add('wip-over');
+          else if (count >= limit - 1) colEl.classList.add('wip-warn');
+        } else {
+          cntEl.textContent = count;
+        }
+      });
+
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', S.filters.includes(b.dataset.pri)));
+    }
+
+    const esc = s => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+
+    let dragged = null;
+    let dragIndicator = null;
+
+    document.addEventListener('dragstart', e => {
+      const c = e.target.closest('.card');
+      if (c) {
+        dragged = c.dataset.id;
+        // Delay adding drag class for smoother pickup
+        requestAnimationFrame(() => c.classList.add('drag'));
+        e.dataTransfer.effectAllowed = 'move';
+      }
+    });
+
+    document.addEventListener('dragend', e => {
+      const c = e.target.closest('.card');
+      if (c) c.classList.remove('drag');
+      document.querySelectorAll('.drop').forEach(x => x.classList.remove('drop'));
+      removeDropIndicator();
+      dragged = null;
+    });
+
+    document.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const col = e.target.closest('.col');
+      if (col && dragged) {
+        document.querySelectorAll('.col').forEach(x => {
+          if (x !== col) x.classList.remove('drop');
+        });
+        col.classList.add('drop');
+        updateDropIndicator(col, e.clientY);
+      }
+    });
+
+    document.addEventListener('dragleave', e => {
+      const col = e.target.closest('.col');
+      if (col && !col.contains(e.relatedTarget)) {
+        col.classList.remove('drop');
+      }
+    });
+
+    document.addEventListener('drop', e => {
+      e.preventDefault();
+      const col = e.target.closest('.col');
+      if (!col || !dragged) return;
+      const toCol = col.dataset.col;
+      const crds = Array.from(col.querySelectorAll('.card:not(.drop-indicator)'));
+      let idx = crds.length;
+      for (let i = 0; i < crds.length; i++) {
+        const r = crds[i].getBoundingClientRect();
+        if (e.clientY < r.top + r.height / 2) { idx = i; break; }
+      }
+      move(dragged, toCol, idx);
+      col.classList.remove('drop');
+      removeDropIndicator();
+    });
+
+    function updateDropIndicator(col, clientY) {
+      removeDropIndicator();
+      const container = col.querySelector('.col-cards');
+      const cards = Array.from(container.querySelectorAll('.card'));
+
+      dragIndicator = document.createElement('div');
+      dragIndicator.className = 'drop-indicator';
+
+      let inserted = false;
+      for (let i = 0; i < cards.length; i++) {
+        const r = cards[i].getBoundingClientRect();
+        if (clientY < r.top + r.height / 2) {
+          container.insertBefore(dragIndicator, cards[i]);
+          inserted = true;
+          break;
+        }
+      }
+      if (!inserted) container.appendChild(dragIndicator);
+    }
+
+    function removeDropIndicator() {
+      if (dragIndicator && dragIndicator.parentNode) {
+        dragIndicator.parentNode.removeChild(dragIndicator);
+      }
+      dragIndicator = null;
+    }
+
+    document.addEventListener('keydown', e => {
+      // Ctrl+E: Export, Ctrl+I: Import
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'e') { e.preventDefault(); exportJSON(); return; }
+        if (e.key === 'i') { e.preventDefault(); importJSON(); return; }
+      }
+      if (e.target.matches('input,[contenteditable="true"]')) {
+        if (e.key === 'Escape') { cancelEdit(); e.target.blur(); }
+        else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); confirmEdit(); }
+        return;
+      }
+      if (S.chord) { handleChord(S.chord, e.key); S.chord = null; hideChord(); e.preventDefault(); return; }
+      switch (e.key) {
+        case '?': toggleHelp(); break;
+        case 's': toggleSettings(); e.preventDefault(); break;
+        case 'Escape':
+          if (!document.getElementById('help').classList.contains('hide')) toggleHelp();
+          else if (S.filters.length) { S.filters = []; render(); }
+          else if (S.card) { S.card = null; render(); }
+          break;
+        case 'a': quickAdd(); e.preventDefault(); break;
+        case 'h': case 'ArrowLeft': navCol(-1, false); e.preventDefault(); break;
+        case 'l': case 'ArrowRight': navCol(1, false); e.preventDefault(); break;
+        case 'Tab':
+          e.shiftKey ? navCol(-1, true) : navCol(1, true);
+          e.preventDefault();
+          break;
+        case 'j': case 'ArrowDown': navCard(1); e.preventDefault(); break;
+        case 'k': case 'ArrowUp': navCard(-1); e.preventDefault(); break;
+        case 'Enter': if (S.card) { startEdit(); e.preventDefault(); } break;
+        case ' ': if (S.card) { moveAdj(e.shiftKey ? -1 : 1); e.preventDefault(); } break;
+        case 'Backspace': case 'Delete': if (S.card && confirm('Delete?')) { del(S.card); S.card = null; } e.preventDefault(); break;
+        case 'p': S.chord = 'p'; showChord('p: c h m l s (priority)'); e.preventDefault(); break;
+        case 'e': S.chord = 'e'; showChord('e: 1-6, 0=clear'); e.preventDefault(); break;
+        case 'f': S.chord = 'f'; showChord('f: c h m l s, f=clear'); e.preventDefault(); break;
+        case 'g': S.chord = 'g'; showChord('g: g=first, i n x l d'); e.preventDefault(); break;
+        case 'G': goToLast(); e.preventDefault(); break;
+      }
+    });
+
+    function handleChord(ch, k) {
+      const priMap = { c: 'critical', h: 'high', m: 'medium', l: 'low', s: 'someday' };
+      const colMap = { i: 0, n: 1, x: 2, l: 3, d: 4 };
+      const effMap = { '1': '15m', '2': '1h', '3': '4h', '4': '1d', '5': '3d', '6': '1w', '0': null };
+      if (ch === 'g') {
+        if (k === 'g') { goToFirst(); }
+        else if (k in colMap) { S.col = colMap[k]; S.card = null; updColFocus(); const v = visible(COLS[S.col]); if (v.length) { S.card = v[0].id; render(); focus(S.card); } }
+      }
+      else if (ch === 'p' && S.card && k in priMap) upd(S.card, { pri: priMap[k] });
+      else if (ch === 'e' && S.card && k in effMap) upd(S.card, { eff: effMap[k] });
+      else if (ch === 'f') { if (k === 'f') { S.filters = []; render(); } else if (k in priMap) { const p = priMap[k]; const i = S.filters.indexOf(p); if (i >= 0) S.filters.splice(i, 1); else S.filters.push(p); render(); } }
+    }
+
+    function goToFirst() {
+      const v = visible(COLS[S.col]);
+      if (v.length) { S.card = v[0].id; render(); focus(S.card); }
+    }
+
+    function goToLast() {
+      const v = visible(COLS[S.col]);
+      if (v.length) { S.card = v[v.length - 1].id; render(); focus(S.card); }
+    }
+
+    const showChord = t => { const el = document.getElementById('chord'); el.textContent = t; el.classList.add('show'); };
+    const hideChord = () => document.getElementById('chord').classList.remove('show');
+
+    function navCol(d, cycle = false) {
+      if (cycle) {
+        // Tab cycles: Done → Inbox, Inbox → Done
+        S.col = (S.col + d + COLS.length) % COLS.length;
+      } else {
+        S.col = Math.max(0, Math.min(COLS.length - 1, S.col + d));
+      }
+      S.card = null;
+      updColFocus();
+      const v = visible(COLS[S.col]);
+      if (v.length) { S.card = v[0].id; render(); focus(S.card); } else render();
+    }
+
+    function navCard(d) {
+      const v = visible(COLS[S.col]);
+      if (!v.length) return;
+      let i = v.findIndex(c => c.id === S.card);
+      if (i < 0) i = d > 0 ? -1 : v.length;
+      i = Math.max(0, Math.min(v.length - 1, i + d));
+      S.card = v[i].id;
+      render();
+      focus(S.card);
+    }
+
+    function updColFocus() {
+      document.querySelectorAll('.col').forEach((c, i) => c.classList.toggle('focused', i === S.col));
+    }
+
+    function focus(id) {
+      const el = document.querySelector(`.card[data-id="${id}"]`);
+      if (el) { el.focus(); el.scrollIntoView({ block: 'nearest' }); }
+    }
+
+    function moveAdj(d) {
+      const c = S.cards.find(x => x.id === S.card);
+      if (!c) return;
+      const i = COLS.indexOf(c.col);
+      const ni = Math.max(0, Math.min(COLS.length - 1, i + d));
+      if (ni !== i) { move(c.id, COLS[ni]); S.col = ni; updColFocus(); focus(c.id); }
+    }
+
+    function initFilters() {
+      document.getElementById('filters').innerHTML = Object.entries(PRIS).map(([k, v]) =>
+        `<button class="filter-btn" data-pri="${k}"><span class="filter-dot" style="background:var(--pri-${k})"></span>${v}</button>`
+      ).join('');
+      document.getElementById('filters').addEventListener('click', e => {
+        const b = e.target.closest('.filter-btn');
+        if (b) { const p = b.dataset.pri; const i = S.filters.indexOf(p); if (i >= 0) S.filters.splice(i, 1); else S.filters.push(p); render(); }
+      });
+    }
+
+    function quickAdd() {
+      const col = COLS[S.col];
+      const cont = document.querySelector(`.col[data-col="${col}"] .col-cards`);
+      const ex = cont.querySelector('.add');
+      if (ex) ex.remove();
+      const div = document.createElement('div');
+      div.className = 'add';
+      div.innerHTML = `<input placeholder="New card..." autofocus>`;
+      cont.prepend(div);
+      const inp = div.querySelector('input');
+      inp.focus();
+      const rm = () => div.parentNode && div.remove();
+      inp.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && inp.value.trim()) {
+          const c = add(inp.value, col);
+          save(); rm(); render(); S.card = c.id; focus(c.id);
+          e.stopPropagation();
+        } else if (e.key === 'Escape') { rm(); e.stopPropagation(); }
+      });
+      inp.addEventListener('blur', () => setTimeout(rm, 100));
+    }
+
+    function startEdit() {
+      const el = document.querySelector(`.card[data-id="${S.card}"] .card-title`);
+      if (!el) return;
+      el.contentEditable = 'true';
+      el.focus();
+      const r = document.createRange();
+      r.selectNodeContents(el);
+      const s = window.getSelection();
+      s.removeAllRanges();
+      s.addRange(r);
+      el.closest('.card').classList.add('edit');
+    }
+
+    function confirmEdit() {
+      const el = document.querySelector(`.card[data-id="${S.card}"] .card-title`);
+      if (!el) return;
+      const t = el.textContent.trim();
+      if (t) upd(S.card, { title: t });
+      el.contentEditable = 'false';
+      el.closest('.card')?.classList.remove('edit');
+      focus(S.card);
+    }
+
+    function cancelEdit() {
+      const el = document.querySelector(`.card[data-id="${S.card}"] .card-title`);
+      if (!el) return;
+      el.contentEditable = 'false';
+      el.closest('.card')?.classList.remove('edit');
+      render();
+      focus(S.card);
+    }
+
+    function toggleHelp() { document.getElementById('help').classList.toggle('hide'); }
+
+    function initHelp() {
+      document.getElementById('help-btn').addEventListener('click', toggleHelp);
+      document.getElementById('help').innerHTML = `<div class="help-box"><h2>Keyboard Shortcuts</h2><h3>Navigate</h3><table><tr><td><kbd>h</kbd> <kbd>l</kbd> <kbd>Tab</kbd></td><td>Move between columns</td></tr><tr><td><kbd>j</kbd> <kbd>k</kbd></td><td>Move between cards</td></tr><tr><td><kbd>gg</kbd></td><td>Go to first card</td></tr><tr><td><kbd>G</kbd></td><td>Go to last card</td></tr><tr><td><kbd>g</kbd> + <kbd>i/n/x/l/d</kbd></td><td>Jump to column</td></tr></table><h3>Actions</h3><table><tr><td><kbd>a</kbd></td><td>Add card</td></tr><tr><td><kbd>Enter</kbd></td><td>Edit card</td></tr><tr><td><kbd>Space</kbd></td><td>Move card right</td></tr><tr><td><kbd>Shift+Space</kbd></td><td>Move card left</td></tr><tr><td><kbd>Backspace</kbd></td><td>Delete card</td></tr></table><h3>Assign</h3><table><tr><td><kbd>p</kbd> + <kbd>c/h/m/l/s</kbd></td><td>Priority (critical→someday)</td></tr><tr><td><kbd>e</kbd> + <kbd>1-6</kbd></td><td>Effort (15m→1w)</td></tr><tr><td><kbd>f</kbd> + <kbd>c/h/m/l/s</kbd></td><td>Filter priority</td></tr><tr><td><kbd>f</kbd> + <kbd>f</kbd></td><td>Clear filters</td></tr></table><h3>Sync</h3><table><tr><td><kbd>s</kbd></td><td>Open sync settings</td></tr><tr><td><kbd>Ctrl+E</kbd></td><td>Export JSON</td></tr><tr><td><kbd>Ctrl+I</kbd></td><td>Import JSON</td></tr></table><p style="margin-top:10px;color:var(--muted);text-align:center"><kbd>?</kbd> or <kbd>Esc</kbd> to close</p></div>`;
+      document.getElementById('help').addEventListener('click', e => { if (e.target === document.getElementById('help')) toggleHelp(); });
+    }
+
+    // ============================================
+    // SETTINGS
+    // ============================================
+    function toggleSettings() {
+      const el = document.getElementById('settings');
+      el.classList.toggle('hide');
+      if (!el.classList.contains('hide')) {
+        updateSettingsUI();
+      }
+    }
+
+    function updateSettingsUI() {
+      document.getElementById('sync-method').value = SYNC.method;
+      document.getElementById('gist-token').value = SYNC.gistToken || '';
+      document.getElementById('gist-settings').classList.toggle('hide', SYNC.method !== 'gist');
+      document.getElementById('file-settings').classList.toggle('hide', SYNC.method !== 'file');
+      document.getElementById('file-status').textContent = SYNC.fileHandle ? 'File linked' : 'No file selected';
+    }
+
+    function initSettings() {
+      // Tab switching
+      document.querySelectorAll('.settings-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hide'));
+          tab.classList.add('active');
+          document.getElementById('tab-' + tab.dataset.tab).classList.remove('hide');
+        });
+      });
+
+      // Sync method change
+      document.getElementById('sync-method').addEventListener('change', e => {
+        SYNC.method = e.target.value;
+        localStorage.setItem('sync_method', SYNC.method);
+        updateSettingsUI();
+      });
+
+      // Gist token input
+      document.getElementById('gist-token').addEventListener('change', async e => {
+        const token = e.target.value.trim();
+        if (!token) return;
+        setGistToken(token);
+        await testGistConnection();
+      });
+
+      // File picker button
+      document.getElementById('pick-file-btn').addEventListener('click', requestFileHandle);
+
+      // Export/Import buttons
+      document.getElementById('export-btn').addEventListener('click', exportJSON);
+      document.getElementById('import-btn').addEventListener('click', importJSON);
+
+      // Sync status click opens settings
+      document.getElementById('sync-status').addEventListener('click', toggleSettings);
+
+      // Click outside to close
+      document.getElementById('settings').addEventListener('click', e => {
+        if (e.target === document.getElementById('settings')) toggleSettings();
+      });
+
+      // ESC closes settings
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && !document.getElementById('settings').classList.contains('hide')) {
+          toggleSettings();
+        }
+      });
+
+      // Initial gist status check
+      if (SYNC.method === 'gist' && SYNC.gistToken) {
+        testGistConnection();
+      }
+    }
+
+    async function testGistConnection() {
+      const statusEl = document.getElementById('gist-status');
+      if (!SYNC.gistToken) {
+        statusEl.textContent = '';
+        return;
+      }
+      statusEl.textContent = 'Testing connection...';
+      statusEl.className = 'sync-status-line';
+      try {
+        const res = await fetch('https://api.github.com/user', {
+          headers: { Authorization: `token ${SYNC.gistToken}` }
+        });
+        if (res.ok) {
+          const user = await res.json();
+          statusEl.textContent = `Connected as ${user.login}`;
+          statusEl.className = 'sync-status-line ok';
+
+          // If we have a local gist ID, try to load from it
+          if (SYNC.gistId) {
+            statusEl.textContent = 'Loading from gist...';
+            const loaded = await loadFromGist();
+            if (loaded) {
+              render();
+              statusEl.textContent = `Synced from gist (${user.login})`;
+              updateSyncStatus('synced');
+            } else {
+              // Local ID invalid, search for existing
+              SYNC.gistId = null;
+              localStorage.removeItem('sync_gist_id');
+            }
+          }
+
+          // No local gist ID - search for existing kanban gist
+          if (!SYNC.gistId) {
+            statusEl.textContent = 'Searching for existing gist...';
+            const existingId = await findExistingKanbanGist();
+            if (existingId) {
+              SYNC.gistId = existingId;
+              localStorage.setItem('sync_gist_id', existingId);
+              statusEl.textContent = 'Found existing gist, loading...';
+              const loaded = await loadFromGist();
+              if (loaded) {
+                render();
+                statusEl.textContent = `Synced from gist (${user.login})`;
+                updateSyncStatus('synced');
+              }
+            } else {
+              // No existing gist found - create new
+              statusEl.textContent = 'Creating gist...';
+              await saveToGist();
+              statusEl.textContent = `Gist created (${user.login})`;
+              updateSyncStatus('synced');
+            }
+          }
+        } else {
+          statusEl.textContent = 'Invalid token';
+          statusEl.className = 'sync-status-line error';
+        }
+      } catch (e) {
+        statusEl.textContent = 'Failed: ' + e.message;
+        statusEl.className = 'sync-status-line error';
+      }
+    }
+
+    // ============================================
+    // MOBILE SUPPORT
+    // ============================================
+    const isMobile = () => window.innerWidth <= 768;
+
+    // Mobile FAB - add card
+    document.getElementById('mobile-fab').addEventListener('click', () => {
+      // Find current visible column
+      const board = document.getElementById('board');
+      const cols = document.querySelectorAll('.col');
+      let currentCol = 'inbox';
+
+      cols.forEach(col => {
+        const rect = col.getBoundingClientRect();
+        if (rect.left >= 0 && rect.left < window.innerWidth / 2) {
+          currentCol = col.dataset.col;
+        }
+      });
+
+      S.col = COLS.indexOf(currentCol);
+      quickAdd();
+    });
+
+    // Mobile action bar handlers
+    document.querySelector('.mobile-action-btn.move-left').addEventListener('click', () => {
+      if (S.card) { moveAdj(-1); hideMobileActions(); }
+    });
+    document.querySelector('.mobile-action-btn.move-right').addEventListener('click', () => {
+      if (S.card) { moveAdj(1); hideMobileActions(); }
+    });
+    document.querySelector('.mobile-action-btn.delete').addEventListener('click', () => {
+      if (S.card && confirm('Delete this card?')) {
+        del(S.card);
+        S.card = null;
+        hideMobileActions();
+      }
+    });
+
+    function showMobileActions() {
+      if (isMobile()) {
+        document.getElementById('mobile-actions').classList.add('show');
+        document.getElementById('mobile-fab').style.display = 'none';
+      }
+    }
+
+    function hideMobileActions() {
+      document.getElementById('mobile-actions').classList.remove('show');
+      if (isMobile()) {
+        document.getElementById('mobile-fab').style.display = 'flex';
+      }
+    }
+
+    // Card click to select (desktop and mobile)
+    document.addEventListener('click', e => {
+      const card = e.target.closest('.card');
+      if (card) {
+        e.preventDefault();
+        const id = card.dataset.id;
+        if (S.card === id) {
+          // Double click/tap to edit
+          startEdit();
+        } else {
+          S.card = id;
+          // Find column
+          const col = card.closest('.col');
+          S.col = COLS.indexOf(col.dataset.col);
+          render();
+          if (isMobile()) showMobileActions();
+        }
+      } else if (!e.target.closest('#mobile-actions') && !e.target.closest('.card')) {
+        // Click outside to deselect
+        if (S.card) {
+          S.card = null;
+          render();
+          hideMobileActions();
+        }
+      }
+    });
+
+    // Touch drag and drop for mobile
+    let touchStartX, touchStartY, touchCard, touchGhost;
+
+    document.addEventListener('touchstart', e => {
+      const card = e.target.closest('.card');
+      if (!card || !isMobile()) return;
+
+      const touch = e.touches[0];
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+      touchCard = card;
+
+      // Long press to start drag
+      touchCard.longPressTimer = setTimeout(() => {
+        startTouchDrag(card, touch);
+      }, 300);
+    }, { passive: true });
+
+    document.addEventListener('touchmove', e => {
+      if (touchCard && touchCard.longPressTimer) {
+        const touch = e.touches[0];
+        const dx = Math.abs(touch.clientX - touchStartX);
+        const dy = Math.abs(touch.clientY - touchStartY);
+        // Cancel long press if moved too much
+        if (dx > 10 || dy > 10) {
+          clearTimeout(touchCard.longPressTimer);
+          touchCard.longPressTimer = null;
+        }
+      }
+
+      if (touchGhost) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        touchGhost.style.left = (touch.clientX - touchGhost.offsetWidth / 2) + 'px';
+        touchGhost.style.top = (touch.clientY - touchGhost.offsetHeight / 2) + 'px';
+
+        // Highlight drop target column
+        const col = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.col');
+        document.querySelectorAll('.col').forEach(c => c.classList.remove('drop'));
+        if (col) col.classList.add('drop');
+      }
+    }, { passive: false });
+
+    document.addEventListener('touchend', e => {
+      if (touchCard && touchCard.longPressTimer) {
+        clearTimeout(touchCard.longPressTimer);
+        touchCard.longPressTimer = null;
+      }
+
+      if (touchGhost) {
+        const touch = e.changedTouches[0];
+        const col = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.col');
+
+        if (col && touchCard) {
+          const toCol = col.dataset.col;
+          move(touchCard.dataset.id, toCol);
+        }
+
+        document.querySelectorAll('.col').forEach(c => c.classList.remove('drop'));
+        touchGhost.remove();
+        touchGhost = null;
+        touchCard.classList.remove('drag');
+        touchCard = null;
+      }
+    });
+
+    function startTouchDrag(card, touch) {
+      card.classList.add('drag');
+
+      // Create ghost element
+      touchGhost = card.cloneNode(true);
+      touchGhost.classList.add('touch-drag-ghost');
+      touchGhost.style.width = card.offsetWidth + 'px';
+      touchGhost.style.left = (touch.clientX - card.offsetWidth / 2) + 'px';
+      touchGhost.style.top = (touch.clientY - card.offsetHeight / 2) + 'px';
+      document.body.appendChild(touchGhost);
+
+      // Vibrate feedback if available
+      if (navigator.vibrate) navigator.vibrate(50);
+    }
+
+    // Hide FAB when help is open
+    const origToggleHelp = toggleHelp;
+    toggleHelp = function() {
+      origToggleHelp();
+      const isOpen = !document.getElementById('help').classList.contains('hide');
+      if (isMobile()) {
+        document.getElementById('mobile-fab').style.display = isOpen ? 'none' : 'flex';
+      }
+    };
+
+    load();
+    if (S.cards.length === 0) seedDemo();
+    initFilters();
+    initHelp();
+    initSettings();
+    render();
+    updColFocus();
+  </script>
+</body>
+</html>
