@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kanban v3 - Weight Bars</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper: #FFFCF0;
+      --ink: #2D2B28;
+      --muted: #6F6E69;
+      --line: #DAD8CE;
+      --panel: #F2F0E5;
+      --blue: #205EA6;
+      --cyan: #24837B;
+      --green: #66800B;
+      --orange: #BC5215;
+      --red: #AF3029;
+      --purple: #5E409D;
+      --magenta: #A02F6F;
+
+      --cat-job: #AF3029;
+      --cat-redtape: #BC5215;
+      --cat-school: #205EA6;
+      --cat-learning: #24837B;
+      --cat-social: #5E409D;
+      --cat-investment: #66800B;
+      --cat-health: #A02F6F;
+      --cat-other: #6F6E69;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --paper: #100F0F;
+        --ink: #CECDC3;
+        --muted: #878580;
+        --line: #403E3C;
+        --panel: #1C1B1A;
+        --blue: #4385BE;
+        --cyan: #3AA99F;
+        --green: #879A39;
+        --orange: #DA702C;
+        --red: #D14D41;
+        --purple: #8B7EC8;
+        --magenta: #CE5D97;
+
+        --cat-job: #D14D41;
+        --cat-redtape: #DA702C;
+        --cat-school: #4385BE;
+        --cat-learning: #3AA99F;
+        --cat-social: #8B7EC8;
+        --cat-investment: #879A39;
+        --cat-health: #CE5D97;
+        --cat-other: #878580;
+      }
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font: 11px/1.5 'IBM Plex Mono', ui-monospace, monospace;
+      background: var(--paper);
+      color: var(--ink);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    #header {
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    #header h1 {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }
+    #filters {
+      display: flex;
+      gap: 3px;
+      flex: 1;
+      justify-content: center;
+    }
+    .filter-btn {
+      padding: 3px 8px;
+      background: none;
+      border: 1px solid transparent;
+      cursor: pointer;
+      font: inherit;
+      font-size: 10px;
+      color: var(--muted);
+      border-radius: 3px;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .filter-btn:hover { background: var(--panel); }
+    .filter-btn.active {
+      background: var(--panel);
+      color: var(--ink);
+      border-color: var(--line);
+    }
+    .filter-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+    }
+    #help-btn {
+      padding: 3px 8px;
+      background: none;
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      cursor: pointer;
+      font: inherit;
+      color: var(--muted);
+    }
+    #chord {
+      position: fixed;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 6px 14px;
+      background: var(--ink);
+      color: var(--paper);
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 500;
+      opacity: 0;
+      transition: opacity 0.15s;
+      z-index: 100;
+    }
+    #chord.show { opacity: 1; }
+
+    #board {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      padding: 12px;
+      overflow-x: auto;
+    }
+    .col {
+      width: 280px;
+      min-width: 280px;
+      max-width: 280px;
+      display: flex;
+      flex-direction: column;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+    }
+    .col-head {
+      padding: 10px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--line);
+    }
+    .col-cards {
+      flex: 1;
+      padding: 8px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .col.focused { border-color: var(--blue); }
+    .col.drop .col-cards { background: rgba(32,94,166,0.06); }
+
+    /* CARD - Horizontal layout with weight bar */
+    .card {
+      display: flex;
+      gap: 0;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      cursor: grab;
+      transition: all 0.15s;
+      overflow: hidden;
+    }
+    .card:hover {
+      border-color: var(--muted);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .card:focus, .card.sel {
+      outline: none;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 2px rgba(32, 94, 166, 0.2);
+    }
+
+    /* WEIGHT BAR - Left side visual indicator */
+    .card-weight {
+      width: 6px;
+      flex-shrink: 0;
+      background: var(--muted);
+    }
+    .card[data-eff="15m"] .card-weight { background: var(--muted); opacity: 0.3; }
+    .card[data-eff="1h"] .card-weight { background: var(--muted); opacity: 0.5; }
+    .card[data-eff="4h"] .card-weight { background: var(--orange); opacity: 0.7; }
+    .card[data-eff="1d"] .card-weight { background: var(--orange); }
+    .card[data-eff="3d"] .card-weight { background: var(--red); }
+    .card[data-eff="1w"] .card-weight { background: var(--red); width: 10px; }
+
+    /* Card content area */
+    .card-body {
+      flex: 1;
+      padding: 8px 10px;
+      min-height: 40px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    /* Size by effort */
+    .card[data-eff="15m"] .card-body { min-height: 36px; padding: 6px 8px; }
+    .card[data-eff="1h"] .card-body { min-height: 44px; }
+    .card[data-eff="4h"] .card-body { min-height: 56px; }
+    .card[data-eff="1d"] .card-body { min-height: 72px; padding: 10px 12px; }
+    .card[data-eff="3d"] .card-body { min-height: 90px; padding: 12px 14px; }
+    .card[data-eff="1w"] .card-body { min-height: 110px; padding: 14px 16px; }
+
+    /* Category indicator - right side stripe */
+    .card-cat-stripe {
+      width: 4px;
+      flex-shrink: 0;
+    }
+    .card[data-cat="job"] .card-cat-stripe { background: var(--cat-job); }
+    .card[data-cat="redtape"] .card-cat-stripe { background: var(--cat-redtape); }
+    .card[data-cat="school"] .card-cat-stripe { background: var(--cat-school); }
+    .card[data-cat="learning"] .card-cat-stripe { background: var(--cat-learning); }
+    .card[data-cat="social"] .card-cat-stripe { background: var(--cat-social); }
+    .card[data-cat="investment"] .card-cat-stripe { background: var(--cat-investment); }
+    .card[data-cat="health"] .card-cat-stripe { background: var(--cat-health); }
+    .card[data-cat="other"] .card-cat-stripe { background: var(--cat-other); }
+
+    .card-title {
+      font-size: 10px;
+      line-height: 1.4;
+      font-weight: 500;
+    }
+    .card[data-eff="15m"] .card-title { font-size: 9px; color: var(--muted); }
+    .card[data-eff="4h"] .card-title { font-size: 11px; }
+    .card[data-eff="1d"] .card-title { font-size: 12px; font-weight: 500; }
+    .card[data-eff="3d"] .card-title { font-size: 13px; font-weight: 600; }
+    .card[data-eff="1w"] .card-title { font-size: 14px; font-weight: 600; }
+
+    .card-meta {
+      margin-top: 4px;
+      font-size: 9px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .card-cat-label {
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      font-size: 8px;
+    }
+    .card[data-cat="job"] .card-cat-label { color: var(--cat-job); }
+    .card[data-cat="redtape"] .card-cat-label { color: var(--cat-redtape); }
+    .card[data-cat="school"] .card-cat-label { color: var(--cat-school); }
+    .card[data-cat="learning"] .card-cat-label { color: var(--cat-learning); }
+    .card[data-cat="social"] .card-cat-label { color: var(--cat-social); }
+    .card[data-cat="investment"] .card-cat-label { color: var(--cat-investment); }
+    .card[data-cat="health"] .card-cat-label { color: var(--cat-health); }
+
+    .card-eff-label {
+      padding: 1px 5px;
+      background: var(--panel);
+      border-radius: 2px;
+      font-weight: 500;
+    }
+    .card[data-eff="3d"] .card-eff-label,
+    .card[data-eff="1w"] .card-eff-label {
+      background: var(--red);
+      color: white;
+    }
+
+    .add {
+      padding: 8px 10px;
+      border: 2px dashed var(--blue);
+      border-radius: 4px;
+      background: rgba(32, 94, 166, 0.03);
+    }
+    .add input {
+      width: 100%;
+      border: none;
+      background: none;
+      font: inherit;
+      color: var(--ink);
+      outline: none;
+    }
+    #help {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    #help.hide { display: none; }
+    .help-box {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 16px 20px;
+      max-width: 500px;
+      font-size: 10px;
+    }
+    .help-box h2 { font-size: 12px; margin-bottom: 10px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+    .help-box table { width: 100%; }
+    .help-box td { padding: 2px 0; }
+    .help-box kbd {
+      display: inline-block;
+      padding: 1px 5px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 2px;
+      font: inherit;
+      font-size: 9px;
+    }
+    @media (max-width: 900px) {
+      .col { width: 240px; min-width: 240px; }
+      #filters { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header id="header">
+    <h1>Kanban v3</h1>
+    <div id="filters"></div>
+    <button id="help-btn">?</button>
+  </header>
+  <main id="board">
+    <div class="col" data-col="inbox"><div class="col-head"><span>Inbox</span><span class="cnt">0</span></div><div class="col-cards"></div></div>
+    <div class="col" data-col="now"><div class="col-head"><span>Now</span><span class="cnt">0</span></div><div class="col-cards"></div></div>
+    <div class="col" data-col="next"><div class="col-head"><span>Next</span><span class="cnt">0</span></div><div class="col-cards"></div></div>
+    <div class="col" data-col="later"><div class="col-head"><span>Later</span><span class="cnt">0</span></div><div class="col-cards"></div></div>
+    <div class="col" data-col="done"><div class="col-head"><span>Done</span><span class="cnt">0</span></div><div class="col-cards"></div></div>
+  </main>
+  <div id="chord"></div>
+  <div id="help" class="hide"></div>
+  <script>
+    const COLS = ['inbox', 'now', 'next', 'later', 'done'];
+    const CATS = {
+      job: 'JOB', redtape: 'ADMIN', school: 'SCHOOL', learning: 'LEARN',
+      social: 'SOCIAL', investment: 'INVEST', health: 'HEALTH', other: 'OTHER'
+    };
+    const EFF_WEIGHT = { '1w': 6, '3d': 5, '1d': 4, '4h': 3, '1h': 2, '15m': 1, null: 0 };
+    const S = { cards: [], filters: [], col: 0, card: null, chord: null };
+
+    const uuid = () => crypto.randomUUID();
+    const cards = col => S.cards.filter(c => c.col === col).sort((a, b) => {
+      const wA = EFF_WEIGHT[a.eff] || 0, wB = EFF_WEIGHT[b.eff] || 0;
+      return wB !== wA ? wB - wA : a.ord - b.ord;
+    });
+    const visible = col => { let c = cards(col); return S.filters.length ? c.filter(x => S.filters.includes(x.cat)) : c; };
+    const reorder = col => cards(col).forEach((c, i) => c.ord = i);
+
+    function add(title, col = 'inbox', cat = 'other', eff = null) {
+      const c = { id: uuid(), title: title.trim(), col, cat, eff, ord: cards(col).length, ts: Date.now() };
+      S.cards.push(c);
+      return c;
+    }
+    function upd(id, data) {
+      const c = S.cards.find(x => x.id === id);
+      if (c) { Object.assign(c, data, { ts: Date.now() }); save(); render(); }
+    }
+    function del(id) {
+      const i = S.cards.findIndex(x => x.id === id);
+      if (i >= 0) { const col = S.cards[i].col; S.cards.splice(i, 1); reorder(col); save(); render(); }
+    }
+    function move(id, toCol, toIdx = null) {
+      const c = S.cards.find(x => x.id === id);
+      if (!c) return;
+      const from = c.col;
+      c.col = toCol; c.ts = Date.now();
+      reorder(from);
+      const cc = cards(toCol).filter(x => x.id !== id);
+      if (toIdx !== null && toIdx < cc.length) { cc.splice(toIdx, 0, c); cc.forEach((x, i) => x.ord = i); }
+      else c.ord = cc.length;
+      save(); render();
+    }
+
+    const KEY = 'kanban_v3';
+    const save = () => localStorage.setItem(KEY, JSON.stringify({ v: 3, cards: S.cards }));
+    const load = () => {
+      try {
+        const d = JSON.parse(localStorage.getItem(KEY));
+        if (d?.v === 3) S.cards = d.cards || [];
+      } catch {}
+    };
+
+    function seedDemo() {
+      add('Read "Thinking in Systems"', 'inbox', 'learning', '3d');
+      add('Book dentist', 'inbox', 'health', '15m');
+      add('Reply to Prof. Chen', 'inbox', 'school', '1h');
+      add('Check passport renewal', 'inbox', 'redtape', '15m');
+      add('Mom birthday gift', 'inbox', 'social', '1h');
+      add('Anthropic application - final review', 'now', 'job', '4h');
+      add('CS229 Problem Set 3', 'now', 'school', '1d');
+      add('Jane Street phone prep', 'now', 'job', '4h');
+      add('File Q4 taxes', 'now', 'redtape', '1h');
+      add('Gym', 'now', 'health', '1h');
+      add('Dinner with Alex', 'now', 'social', '15m');
+      add('OpenAI Residency essay', 'next', 'job', '1d');
+      add('Build transformer from scratch', 'next', 'learning', '1w');
+      add('Midterm - Statistical Learning', 'next', 'school', '3d');
+      add('Annual physical', 'next', 'health', '1h');
+      add('Rebalance 401k', 'next', 'investment', '1h');
+      add('Call grandparents', 'next', 'social', '15m');
+      add('DMV - drivers license', 'next', 'redtape', '4h');
+      add('Learn Rust', 'later', 'learning', '1w');
+      add('Knowledge graph side project', 'later', 'learning', '1w');
+      add('Tax-loss harvesting', 'later', 'investment', '4h');
+      add('PhD program research', 'later', 'school', '3d');
+      add('Marathon training plan', 'later', 'health', '1w');
+      add('Reconnect college friends', 'later', 'social', '1h');
+      add('Citadel application', 'later', 'job', '1d');
+      add('Google Research app', 'done', 'job', '1d');
+      add('CS231n Assignment 2', 'done', 'school', '1d');
+      add('Update LinkedIn', 'done', 'job', '1h');
+      add('Flu shot', 'done', 'health', '15m');
+      add('Setup Roth IRA', 'done', 'investment', '1h');
+      save();
+    }
+
+    function render() {
+      COLS.forEach(col => {
+        const cont = document.querySelector(`.col[data-col="${col}"] .col-cards`);
+        const list = visible(col);
+        cont.innerHTML = '';
+        list.forEach(c => {
+          const el = document.createElement('div');
+          el.className = 'card' + (S.card === c.id ? ' sel' : '');
+          el.dataset.id = c.id;
+          el.dataset.cat = c.cat;
+          if (c.eff) el.dataset.eff = c.eff;
+          el.draggable = true;
+          el.tabIndex = 0;
+          el.innerHTML = `
+            <div class="card-weight"></div>
+            <div class="card-body">
+              <div class="card-title">${esc(c.title)}</div>
+              <div class="card-meta">
+                <span class="card-cat-label">${CATS[c.cat] || 'OTHER'}</span>
+                ${c.eff ? `<span class="card-eff-label">${c.eff}</span>` : ''}
+              </div>
+            </div>
+            <div class="card-cat-stripe"></div>
+          `;
+          cont.appendChild(el);
+        });
+        document.querySelector(`.col[data-col="${col}"] .cnt`).textContent = cards(col).length;
+      });
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', S.filters.includes(b.dataset.cat)));
+    }
+
+    const esc = s => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+
+    let dragged = null;
+    document.addEventListener('dragstart', e => {
+      const c = e.target.closest('.card');
+      if (c) { dragged = c.dataset.id; c.classList.add('drag'); }
+    });
+    document.addEventListener('dragend', e => {
+      const c = e.target.closest('.card');
+      if (c) c.classList.remove('drag');
+      document.querySelectorAll('.drop').forEach(x => x.classList.remove('drop'));
+      dragged = null;
+    });
+    document.addEventListener('dragover', e => {
+      e.preventDefault();
+      const col = e.target.closest('.col');
+      if (col && dragged) {
+        document.querySelectorAll('.col').forEach(x => x.classList.remove('drop'));
+        col.classList.add('drop');
+      }
+    });
+    document.addEventListener('drop', e => {
+      e.preventDefault();
+      const col = e.target.closest('.col');
+      if (!col || !dragged) return;
+      const toCol = col.dataset.col;
+      const crds = col.querySelectorAll('.card');
+      let idx = crds.length;
+      for (let i = 0; i < crds.length; i++) {
+        const r = crds[i].getBoundingClientRect();
+        if (e.clientY < r.top + r.height / 2) { idx = i; break; }
+      }
+      move(dragged, toCol, idx);
+      col.classList.remove('drop');
+    });
+
+    document.addEventListener('keydown', e => {
+      if (e.target.matches('input,[contenteditable="true"]')) {
+        if (e.key === 'Escape') e.target.blur();
+        else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); confirmEdit(); }
+        return;
+      }
+      if (S.chord) { handleChord(S.chord, e.key); S.chord = null; hideChord(); e.preventDefault(); return; }
+      switch (e.key) {
+        case '?': toggleHelp(); break;
+        case 'Escape':
+          if (!document.getElementById('help').classList.contains('hide')) toggleHelp();
+          else if (S.filters.length) { S.filters = []; render(); }
+          else if (S.card) { S.card = null; render(); }
+          break;
+        case 'a': quickAdd(); e.preventDefault(); break;
+        case 'h': case 'ArrowLeft': navCol(-1); e.preventDefault(); break;
+        case 'l': case 'ArrowRight': navCol(1); e.preventDefault(); break;
+        case 'j': case 'ArrowDown': navCard(1); e.preventDefault(); break;
+        case 'k': case 'ArrowUp': navCard(-1); e.preventDefault(); break;
+        case 'Enter': if (S.card) startEdit(); e.preventDefault(); break;
+        case ' ': if (S.card) moveAdj(e.shiftKey ? -1 : 1); e.preventDefault(); break;
+        case 'Backspace': case 'Delete': if (S.card && confirm('Delete?')) { del(S.card); S.card = null; } e.preventDefault(); break;
+        case 'c': S.chord = 'c'; showChord('c: j r s l o i h'); e.preventDefault(); break;
+        case 'e': S.chord = 'e'; showChord('e: 1-6, 0=clear'); e.preventDefault(); break;
+        case 'f': S.chord = 'f'; showChord('f: j r s l o i h, f=clear'); e.preventDefault(); break;
+        case 'g': S.chord = 'g'; showChord('g: i n x l d'); e.preventDefault(); break;
+      }
+    });
+
+    function handleChord(ch, k) {
+      const catMap = { j: 'job', r: 'redtape', s: 'school', l: 'learning', o: 'social', i: 'investment', h: 'health' };
+      const colMap = { i: 0, n: 1, x: 2, l: 3, d: 4 };
+      const effMap = { '1': '15m', '2': '1h', '3': '4h', '4': '1d', '5': '3d', '6': '1w', '0': null };
+      if (ch === 'g' && k in colMap) { S.col = colMap[k]; S.card = null; updColFocus(); const v = visible(COLS[S.col]); if (v.length) { S.card = v[0].id; render(); focus(S.card); } }
+      else if (ch === 'c' && S.card && k in catMap) upd(S.card, { cat: catMap[k] });
+      else if (ch === 'e' && S.card && k in effMap) upd(S.card, { eff: effMap[k] });
+      else if (ch === 'f') { if (k === 'f') { S.filters = []; render(); } else if (k in catMap) { const c = catMap[k]; const i = S.filters.indexOf(c); if (i >= 0) S.filters.splice(i, 1); else S.filters.push(c); render(); } }
+    }
+
+    const showChord = t => { document.getElementById('chord').textContent = t; document.getElementById('chord').classList.add('show'); };
+    const hideChord = () => document.getElementById('chord').classList.remove('show');
+
+    function navCol(d) {
+      S.col = Math.max(0, Math.min(COLS.length - 1, S.col + d));
+      S.card = null;
+      updColFocus();
+      const v = visible(COLS[S.col]);
+      if (v.length) { S.card = v[0].id; render(); focus(S.card); } else render();
+    }
+    function navCard(d) {
+      const v = visible(COLS[S.col]);
+      if (!v.length) return;
+      let i = v.findIndex(c => c.id === S.card);
+      if (i < 0) i = d > 0 ? -1 : v.length;
+      i = Math.max(0, Math.min(v.length - 1, i + d));
+      S.card = v[i].id;
+      render();
+      focus(S.card);
+    }
+    function updColFocus() {
+      document.querySelectorAll('.col').forEach((c, i) => c.classList.toggle('focused', i === S.col));
+    }
+    function focus(id) {
+      const el = document.querySelector(`.card[data-id="${id}"]`);
+      if (el) { el.focus(); el.scrollIntoView({ block: 'nearest' }); }
+    }
+    function moveAdj(d) {
+      const c = S.cards.find(x => x.id === S.card);
+      if (!c) return;
+      const i = COLS.indexOf(c.col);
+      const ni = Math.max(0, Math.min(COLS.length - 1, i + d));
+      if (ni !== i) { move(c.id, COLS[ni]); S.col = ni; updColFocus(); focus(c.id); }
+    }
+    function initFilters() {
+      document.getElementById('filters').innerHTML = Object.entries(CATS).map(([k, v]) =>
+        `<button class="filter-btn" data-cat="${k}"><span class="filter-dot" style="background:var(--cat-${k})"></span>${v}</button>`
+      ).join('');
+      document.getElementById('filters').addEventListener('click', e => {
+        const b = e.target.closest('.filter-btn');
+        if (b) { const c = b.dataset.cat; const i = S.filters.indexOf(c); if (i >= 0) S.filters.splice(i, 1); else S.filters.push(c); render(); }
+      });
+    }
+    function quickAdd() {
+      const col = COLS[S.col];
+      const cont = document.querySelector(`.col[data-col="${col}"] .col-cards`);
+      const ex = cont.querySelector('.add'); if (ex) ex.remove();
+      const div = document.createElement('div');
+      div.className = 'add';
+      div.innerHTML = `<input placeholder="New card..." autofocus>`;
+      cont.prepend(div);
+      const inp = div.querySelector('input');
+      inp.focus();
+      const rm = () => div.parentNode && div.remove();
+      inp.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && inp.value.trim()) {
+          const c = add(inp.value, col);
+          save(); rm(); render(); S.card = c.id; focus(c.id);
+          e.stopPropagation();
+        } else if (e.key === 'Escape') { rm(); e.stopPropagation(); }
+      });
+      inp.addEventListener('blur', () => setTimeout(rm, 100));
+    }
+    function startEdit() {
+      const el = document.querySelector(`.card[data-id="${S.card}"] .card-title`);
+      if (!el) return;
+      el.contentEditable = 'true';
+      el.focus();
+      const r = document.createRange();
+      r.selectNodeContents(el);
+      window.getSelection().removeAllRanges();
+      window.getSelection().addRange(r);
+    }
+    function confirmEdit() {
+      const el = document.querySelector(`.card[data-id="${S.card}"] .card-title`);
+      if (!el) return;
+      const t = el.textContent.trim();
+      if (t) upd(S.card, { title: t });
+      el.contentEditable = 'false';
+      focus(S.card);
+    }
+    function toggleHelp() { document.getElementById('help').classList.toggle('hide'); }
+    function initHelp() {
+      document.getElementById('help-btn').addEventListener('click', toggleHelp);
+      document.getElementById('help').innerHTML = `<div class="help-box"><h2>Keyboard Shortcuts</h2><table><tr><td><kbd>h</kbd>/<kbd>l</kbd></td><td>Navigate columns</td></tr><tr><td><kbd>j</kbd>/<kbd>k</kbd></td><td>Navigate cards</td></tr><tr><td><kbd>a</kbd></td><td>Add card</td></tr><tr><td><kbd>Enter</kbd></td><td>Edit</td></tr><tr><td><kbd>Space</kbd></td><td>Move right</td></tr><tr><td><kbd>c</kbd>+key</td><td>Set category</td></tr><tr><td><kbd>e</kbd>+1-6</td><td>Set effort</td></tr><tr><td><kbd>f</kbd>+key</td><td>Filter</td></tr></table></div>`;
+      document.getElementById('help').addEventListener('click', e => { if (e.target === document.getElementById('help')) toggleHelp(); });
+    }
+
+    load();
+    if (S.cards.length === 0) seedDemo();
+    initFilters();
+    initHelp();
+    render();
+    updColFocus();
+  </script>
+</body>
+</html>

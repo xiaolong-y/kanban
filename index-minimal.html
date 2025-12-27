@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>K</title>
+  <style>
+    :root {
+      --bg: #fafafa;
+      --text: #1a1a1a;
+      --muted: #999;
+      --border: #e5e5e5;
+      --accent: #0066ff;
+      --cat-job: #e53935;
+      --cat-redtape: #fb8c00;
+      --cat-school: #1e88e5;
+      --cat-learning: #00acc1;
+      --cat-social: #8e24aa;
+      --cat-investment: #43a047;
+      --cat-health: #d81b60;
+      --cat-other: #757575;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111;
+        --text: #eee;
+        --muted: #666;
+        --border: #333;
+        --accent: #4d9fff;
+      }
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font: 13px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    #header {
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+    #header h1 {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+    #filters {
+      display: flex;
+      gap: 4px;
+      flex: 1;
+    }
+    .filter-btn {
+      padding: 2px 8px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font: inherit;
+      color: var(--muted);
+      border-radius: 3px;
+      transition: all 0.1s;
+    }
+    .filter-btn:hover { background: var(--border); }
+    .filter-btn.active { color: var(--text); background: var(--border); }
+    .filter-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      margin-right: 4px;
+    }
+    #help-btn {
+      padding: 2px 8px;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      cursor: pointer;
+      font: inherit;
+      color: var(--muted);
+    }
+    #help-btn:hover { color: var(--text); }
+    #chord {
+      position: fixed;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 6px 12px;
+      background: var(--text);
+      color: var(--bg);
+      border-radius: 4px;
+      font-size: 11px;
+      opacity: 0;
+      transition: opacity 0.15s;
+      z-index: 100;
+    }
+    #chord.show { opacity: 1; }
+    #board {
+      flex: 1;
+      display: flex;
+      overflow-x: auto;
+    }
+    .col {
+      flex: 1;
+      min-width: 200px;
+      max-width: 320px;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+    }
+    .col:last-child { border-right: none; }
+    .col-head {
+      padding: 8px 12px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-bottom: 1px solid var(--border);
+    }
+    .col-cards {
+      flex: 1;
+      padding: 8px;
+      overflow-y: auto;
+    }
+    .col.focused .col-head { color: var(--text); }
+    .col.drop { background: rgba(0,102,255,0.03); }
+    .card {
+      padding: 8px 10px;
+      margin-bottom: 6px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-left: 2px solid var(--cat-other);
+      cursor: grab;
+      transition: all 0.1s;
+    }
+    .card:hover { border-color: var(--muted); }
+    .card:focus, .card.sel {
+      outline: none;
+      border-color: var(--accent);
+      border-left-width: 2px;
+    }
+    .card.drag { opacity: 0.5; }
+    .card[data-cat="job"] { border-left-color: var(--cat-job); }
+    .card[data-cat="redtape"] { border-left-color: var(--cat-redtape); }
+    .card[data-cat="school"] { border-left-color: var(--cat-school); }
+    .card[data-cat="learning"] { border-left-color: var(--cat-learning); }
+    .card[data-cat="social"] { border-left-color: var(--cat-social); }
+    .card[data-cat="investment"] { border-left-color: var(--cat-investment); }
+    .card[data-cat="health"] { border-left-color: var(--cat-health); }
+    .card-title { font-size: 13px; line-height: 1.4; }
+    .card-meta {
+      margin-top: 4px;
+      font-size: 10px;
+      color: var(--muted);
+      display: flex;
+      gap: 8px;
+    }
+    .card.edit .card-title {
+      outline: none;
+      background: var(--border);
+      padding: 2px 4px;
+      margin: -2px -4px;
+    }
+    .add {
+      padding: 8px;
+      border: 1px dashed var(--accent);
+      margin-bottom: 6px;
+    }
+    .add input {
+      width: 100%;
+      border: none;
+      background: none;
+      font: inherit;
+      color: var(--text);
+      outline: none;
+    }
+    .add input::placeholder { color: var(--muted); }
+    #help {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    #help.hide { display: none; }
+    .help-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 16px 20px;
+      max-width: 500px;
+      font-size: 12px;
+    }
+    .help-box h2 { font-size: 13px; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    .help-box h3 { font-size: 10px; color: var(--muted); margin: 10px 0 4px; text-transform: uppercase; }
+    .help-box table { width: 100%; }
+    .help-box td { padding: 2px 0; }
+    .help-box td:first-child { color: var(--muted); width: 40%; }
+    .help-box kbd {
+      display: inline-block;
+      padding: 1px 5px;
+      background: var(--border);
+      border-radius: 2px;
+      font: inherit;
+      font-size: 10px;
+    }
+  </style>
+</head>
+<body>
+  <header id="header">
+    <h1>Kanban</h1>
+    <div id="filters"></div>
+    <button id="help-btn">?</button>
+  </header>
+  <main id="board">
+    <div class="col" data-col="inbox"><div class="col-head"><span>Inbox</span><span class="cnt">0</span></div><div class="col-cards"></div></div>
+    <div class="col" data-col="now"><div class="col-head"><span>Now</span><span class="cnt">0</span></div><div class="col-cards"></div></div>
+    <div class="col" data-col="next"><div class="col-head"><span>Next</span><span class="cnt">0</span></div><div class="col-cards"></div></div>
+    <div class="col" data-col="later"><div class="col-head"><span>Later</span><span class="cnt">0</span></div><div class="col-cards"></div></div>
+    <div class="col" data-col="done"><div class="col-head"><span>Done</span><span class="cnt">0</span></div><div class="col-cards"></div></div>
+  </main>
+  <div id="chord"></div>
+  <div id="help" class="hide"></div>
+  <script>
+    const COLS = ['inbox', 'now', 'next', 'later', 'done'];
+    const CATS = { job: 'Job', redtape: 'RedTape', school: 'School', learning: 'Learn', social: 'Social', investment: 'Invest', health: 'Health', other: 'Other' };
+    const S = { cards: [], filters: [], col: 0, card: null, chord: null };
+
+    // Data
+    const uuid = () => crypto.randomUUID();
+    const cards = col => S.cards.filter(c => c.col === col).sort((a, b) => a.ord - b.ord);
+    const visible = col => { let c = cards(col); return S.filters.length ? c.filter(x => S.filters.includes(x.cat)) : c; };
+    const reorder = col => cards(col).forEach((c, i) => c.ord = i);
+
+    function add(title, col = 'inbox', cat = 'other') {
+      const c = { id: uuid(), title: title.trim(), col, cat, eff: null, ord: cards(col).length, ts: Date.now() };
+      S.cards.push(c);
+      save();
+      return c;
+    }
+
+    function upd(id, data) {
+      const c = S.cards.find(x => x.id === id);
+      if (c) { Object.assign(c, data, { ts: Date.now() }); save(); render(); }
+    }
+
+    function del(id) {
+      const i = S.cards.findIndex(x => x.id === id);
+      if (i >= 0) { const col = S.cards[i].col; S.cards.splice(i, 1); reorder(col); save(); render(); }
+    }
+
+    function move(id, toCol, toIdx = null) {
+      const c = S.cards.find(x => x.id === id);
+      if (!c) return;
+      const from = c.col;
+      c.col = toCol;
+      c.ts = Date.now();
+      reorder(from);
+      const cc = cards(toCol).filter(x => x.id !== id);
+      if (toIdx !== null && toIdx < cc.length) { cc.splice(toIdx, 0, c); cc.forEach((x, i) => x.ord = i); }
+      else c.ord = cc.length;
+      save();
+      render();
+    }
+
+    // Persist
+    const KEY = 'k_min';
+    const save = () => localStorage.setItem(KEY, JSON.stringify({ v: 1, cards: S.cards }));
+    const load = () => { try { const d = JSON.parse(localStorage.getItem(KEY)); if (d?.v === 1) S.cards = d.cards || []; } catch {} };
+
+    // Render
+    function render() {
+      COLS.forEach(col => {
+        const cont = document.querySelector(`.col[data-col="${col}"] .col-cards`);
+        const list = visible(col);
+        cont.innerHTML = '';
+        list.forEach(c => {
+          const el = document.createElement('div');
+          el.className = 'card' + (S.card === c.id ? ' sel' : '');
+          el.dataset.id = c.id;
+          el.dataset.cat = c.cat;
+          el.draggable = true;
+          el.tabIndex = 0;
+          el.innerHTML = `<div class="card-title">${esc(c.title)}</div><div class="card-meta"><span>${CATS[c.cat] || 'Other'}</span>${c.eff ? `<span>${c.eff}</span>` : ''}</div>`;
+          cont.appendChild(el);
+        });
+        document.querySelector(`.col[data-col="${col}"] .cnt`).textContent = cards(col).length;
+      });
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', S.filters.includes(b.dataset.cat)));
+    }
+
+    const esc = s => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+
+    // Drag
+    let dragged = null;
+    document.addEventListener('dragstart', e => {
+      const c = e.target.closest('.card');
+      if (c) { dragged = c.dataset.id; c.classList.add('drag'); }
+    });
+    document.addEventListener('dragend', e => {
+      const c = e.target.closest('.card');
+      if (c) c.classList.remove('drag');
+      document.querySelectorAll('.drop').forEach(x => x.classList.remove('drop'));
+      dragged = null;
+    });
+    document.addEventListener('dragover', e => {
+      e.preventDefault();
+      const col = e.target.closest('.col');
+      if (col && dragged) {
+        document.querySelectorAll('.col').forEach(x => x.classList.remove('drop'));
+        col.classList.add('drop');
+      }
+    });
+    document.addEventListener('drop', e => {
+      e.preventDefault();
+      const col = e.target.closest('.col');
+      if (!col || !dragged) return;
+      const toCol = col.dataset.col;
+      const cards = col.querySelectorAll('.card');
+      let idx = cards.length;
+      for (let i = 0; i < cards.length; i++) {
+        const r = cards[i].getBoundingClientRect();
+        if (e.clientY < r.top + r.height / 2) { idx = i; break; }
+      }
+      move(dragged, toCol, idx);
+      col.classList.remove('drop');
+    });
+
+    // Keys
+    document.addEventListener('keydown', e => {
+      if (e.target.matches('input,[contenteditable="true"]')) {
+        if (e.key === 'Escape') { cancelEdit(); e.target.blur(); }
+        else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); confirmEdit(); }
+        return;
+      }
+      if (S.chord) { handleChord(S.chord, e.key); S.chord = null; hideChord(); e.preventDefault(); return; }
+      switch (e.key) {
+        case '?': toggleHelp(); break;
+        case 'Escape':
+          if (!document.getElementById('help').classList.contains('hide')) toggleHelp();
+          else if (S.filters.length) { S.filters = []; render(); }
+          else if (S.card) { S.card = null; render(); }
+          break;
+        case 'a': quickAdd(); e.preventDefault(); break;
+        case 'h': case 'ArrowLeft': navCol(-1); e.preventDefault(); break;
+        case 'l': case 'ArrowRight': navCol(1); e.preventDefault(); break;
+        case 'j': case 'ArrowDown': navCard(1); e.preventDefault(); break;
+        case 'k': case 'ArrowUp': navCard(-1); e.preventDefault(); break;
+        case 'Enter': if (S.card) { startEdit(); e.preventDefault(); } break;
+        case ' ': if (S.card) { moveAdj(e.shiftKey ? -1 : 1); e.preventDefault(); } break;
+        case 'Backspace': case 'Delete': if (S.card && confirm('Delete?')) { del(S.card); S.card = null; } e.preventDefault(); break;
+        case 'c': S.chord = 'c'; showChord('c: j r s l o i h'); e.preventDefault(); break;
+        case 'e': S.chord = 'e'; showChord('e: 1-6, 0=clear'); e.preventDefault(); break;
+        case 'f': S.chord = 'f'; showChord('f: j r s l o i h, f=clear'); e.preventDefault(); break;
+        case 'g': S.chord = 'g'; showChord('g: i n x l d'); e.preventDefault(); break;
+      }
+    });
+
+    function handleChord(ch, k) {
+      const catMap = { j: 'job', r: 'redtape', s: 'school', l: 'learning', o: 'social', i: 'investment', h: 'health' };
+      const colMap = { i: 0, n: 1, x: 2, l: 3, d: 4 };
+      const effMap = { '1': '15m', '2': '1h', '3': '4h', '4': '1d', '5': '3d', '6': '1w', '0': null };
+      if (ch === 'g' && k in colMap) { S.col = colMap[k]; S.card = null; updColFocus(); const v = visible(COLS[S.col]); if (v.length) { S.card = v[0].id; render(); focus(S.card); } }
+      else if (ch === 'c' && S.card && k in catMap) upd(S.card, { cat: catMap[k] });
+      else if (ch === 'e' && S.card && k in effMap) upd(S.card, { eff: effMap[k] });
+      else if (ch === 'f') { if (k === 'f') { S.filters = []; render(); } else if (k in catMap) { const c = catMap[k]; const i = S.filters.indexOf(c); if (i >= 0) S.filters.splice(i, 1); else S.filters.push(c); render(); } }
+    }
+
+    const showChord = t => { const el = document.getElementById('chord'); el.textContent = t; el.classList.add('show'); };
+    const hideChord = () => document.getElementById('chord').classList.remove('show');
+
+    // Nav
+    function navCol(d) {
+      S.col = Math.max(0, Math.min(COLS.length - 1, S.col + d));
+      S.card = null;
+      updColFocus();
+      const v = visible(COLS[S.col]);
+      if (v.length) { S.card = v[0].id; render(); focus(S.card); } else render();
+    }
+
+    function navCard(d) {
+      const v = visible(COLS[S.col]);
+      if (!v.length) return;
+      let i = v.findIndex(c => c.id === S.card);
+      if (i < 0) i = d > 0 ? -1 : v.length;
+      i = Math.max(0, Math.min(v.length - 1, i + d));
+      S.card = v[i].id;
+      render();
+      focus(S.card);
+    }
+
+    function updColFocus() {
+      document.querySelectorAll('.col').forEach((c, i) => c.classList.toggle('focused', i === S.col));
+    }
+
+    function focus(id) {
+      const el = document.querySelector(`.card[data-id="${id}"]`);
+      if (el) { el.focus(); el.scrollIntoView({ block: 'nearest' }); }
+    }
+
+    function moveAdj(d) {
+      const c = S.cards.find(x => x.id === S.card);
+      if (!c) return;
+      const i = COLS.indexOf(c.col);
+      const ni = Math.max(0, Math.min(COLS.length - 1, i + d));
+      if (ni !== i) { move(c.id, COLS[ni]); S.col = ni; updColFocus(); focus(c.id); }
+    }
+
+    // Filters
+    function initFilters() {
+      document.getElementById('filters').innerHTML = Object.entries(CATS).map(([k, v]) => `<button class="filter-btn" data-cat="${k}"><span class="filter-dot" style="background:var(--cat-${k})"></span>${v}</button>`).join('');
+      document.getElementById('filters').addEventListener('click', e => {
+        const b = e.target.closest('.filter-btn');
+        if (b) { const c = b.dataset.cat; const i = S.filters.indexOf(c); if (i >= 0) S.filters.splice(i, 1); else S.filters.push(c); render(); }
+      });
+    }
+
+    // Quick add
+    function quickAdd() {
+      const col = COLS[S.col];
+      const cont = document.querySelector(`.col[data-col="${col}"] .col-cards`);
+      const ex = cont.querySelector('.add');
+      if (ex) ex.remove();
+      const div = document.createElement('div');
+      div.className = 'add';
+      div.innerHTML = `<input placeholder="New card..." autofocus>`;
+      cont.prepend(div);
+      const inp = div.querySelector('input');
+      inp.focus();
+      const rm = () => div.parentNode && div.remove();
+      inp.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && inp.value.trim()) {
+          const c = add(inp.value, col);
+          rm(); render(); S.card = c.id; focus(c.id);
+          e.stopPropagation();
+        } else if (e.key === 'Escape') { rm(); e.stopPropagation(); }
+      });
+      inp.addEventListener('blur', () => setTimeout(rm, 100));
+    }
+
+    // Edit
+    function startEdit() {
+      const el = document.querySelector(`.card[data-id="${S.card}"] .card-title`);
+      if (!el) return;
+      el.contentEditable = 'true';
+      el.focus();
+      const r = document.createRange();
+      r.selectNodeContents(el);
+      const s = window.getSelection();
+      s.removeAllRanges();
+      s.addRange(r);
+      el.closest('.card').classList.add('edit');
+    }
+
+    function confirmEdit() {
+      const el = document.querySelector(`.card[data-id="${S.card}"] .card-title`);
+      if (!el) return;
+      const t = el.textContent.trim();
+      if (t) upd(S.card, { title: t });
+      el.contentEditable = 'false';
+      el.closest('.card')?.classList.remove('edit');
+      focus(S.card);
+    }
+
+    function cancelEdit() {
+      const el = document.querySelector(`.card[data-id="${S.card}"] .card-title`);
+      if (!el) return;
+      el.contentEditable = 'false';
+      el.closest('.card')?.classList.remove('edit');
+      render();
+      focus(S.card);
+    }
+
+    // Help
+    function toggleHelp() { document.getElementById('help').classList.toggle('hide'); }
+
+    function initHelp() {
+      document.getElementById('help-btn').addEventListener('click', toggleHelp);
+      document.getElementById('help').innerHTML = `<div class="help-box"><h2>Keys</h2><h3>Move</h3><table><tr><td><kbd>h</kbd><kbd>l</kbd></td><td>Columns</td></tr><tr><td><kbd>j</kbd><kbd>k</kbd></td><td>Cards</td></tr><tr><td><kbd>g</kbd>+key</td><td>Jump</td></tr></table><h3>Act</h3><table><tr><td><kbd>a</kbd></td><td>Add</td></tr><tr><td><kbd>Enter</kbd></td><td>Edit</td></tr><tr><td><kbd>Space</kbd></td><td>Move right</td></tr><tr><td><kbd>Del</kbd></td><td>Delete</td></tr></table><h3>Set</h3><table><tr><td><kbd>c</kbd>+key</td><td>Category</td></tr><tr><td><kbd>e</kbd>+num</td><td>Effort</td></tr><tr><td><kbd>f</kbd>+key</td><td>Filter</td></tr></table><p style="margin-top:12px;color:var(--muted);text-align:center"><kbd>?</kbd> or <kbd>Esc</kbd> to close</p></div>`;
+      document.getElementById('help').addEventListener('click', e => { if (e.target === document.getElementById('help')) toggleHelp(); });
+    }
+
+    // Init
+    load();
+    initFilters();
+    initHelp();
+    render();
+    updColFocus();
+  </script>
+</body>
+</html>

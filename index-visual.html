@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kanban - Visual</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --surface-2: #242424;
+      --border: #333;
+      --text: #f5f5f5;
+      --text-muted: #888;
+
+      /* Vibrant category gradients */
+      --grad-job: linear-gradient(135deg, #ff6b6b, #ee5a5a);
+      --grad-redtape: linear-gradient(135deg, #ffa94d, #fd7e14);
+      --grad-school: linear-gradient(135deg, #74c0fc, #4dabf7);
+      --grad-learning: linear-gradient(135deg, #63e6be, #38d9a9);
+      --grad-social: linear-gradient(135deg, #da77f2, #be4bdb);
+      --grad-investment: linear-gradient(135deg, #a9e34b, #82c91e);
+      --grad-health: linear-gradient(135deg, #f783ac, #e64980);
+      --grad-other: linear-gradient(135deg, #868e96, #495057);
+
+      --radius: 12px;
+      --radius-sm: 6px;
+      --sp: 16px;
+      --column-width: 320px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Header */
+    #header {
+      padding: var(--sp) calc(var(--sp) * 1.5);
+      display: flex;
+      align-items: center;
+      gap: var(--sp);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    #header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      background: linear-gradient(135deg, #74c0fc, #da77f2);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* Filter Pills */
+    #filters {
+      display: flex;
+      gap: 8px;
+      flex: 1;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      background: var(--surface-2);
+      border: 1px solid transparent;
+      border-radius: 20px;
+      cursor: pointer;
+      font: inherit;
+      font-size: 13px;
+      color: var(--text-muted);
+      transition: all 0.2s ease;
+    }
+
+    .filter-btn:hover {
+      background: var(--border);
+      color: var(--text);
+    }
+
+    .filter-btn.active {
+      border-color: var(--text-muted);
+      color: var(--text);
+    }
+
+    .filter-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    #help-btn {
+      width: 36px;
+      height: 36px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      cursor: pointer;
+      font: inherit;
+      font-size: 16px;
+      color: var(--text-muted);
+      transition: all 0.2s ease;
+    }
+
+    #help-btn:hover {
+      background: var(--border);
+      color: var(--text);
+    }
+
+    /* Chord Indicator */
+    #chord-indicator {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 12px 24px;
+      background: var(--text);
+      color: var(--bg);
+      border-radius: var(--radius);
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 100;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    #chord-indicator.visible {
+      opacity: 1;
+    }
+
+    /* Board */
+    #board {
+      flex: 1;
+      display: flex;
+      gap: var(--sp);
+      padding: var(--sp);
+      overflow-x: auto;
+    }
+
+    /* Column */
+    .column {
+      width: var(--column-width);
+      min-width: var(--column-width);
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      transition: all 0.2s ease;
+    }
+
+    .column.focused {
+      border-color: #74c0fc;
+      box-shadow: 0 0 0 1px #74c0fc;
+    }
+
+    .column-header {
+      padding: var(--sp);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .column-title {
+      font-weight: 600;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .column-count {
+      font-size: 13px;
+      color: var(--text-muted);
+      background: var(--surface-2);
+      padding: 4px 10px;
+      border-radius: 12px;
+    }
+
+    .column-cards {
+      flex: 1;
+      padding: 0 var(--sp) var(--sp);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+      min-height: 120px;
+    }
+
+    .column.drop-target {
+      border-color: #74c0fc;
+      background: rgba(116, 192, 252, 0.05);
+    }
+
+    /* Card - Visual emphasis */
+    .card {
+      padding: var(--sp);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      cursor: grab;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--grad-other);
+      transition: height 0.2s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+
+    .card:focus,
+    .card.selected {
+      outline: none;
+      border-color: #74c0fc;
+      box-shadow: 0 0 0 2px rgba(116, 192, 252, 0.3), 0 8px 24px rgba(0,0,0,0.3);
+    }
+
+    .card.dragging {
+      opacity: 0.7;
+      transform: rotate(3deg) scale(1.02);
+    }
+
+    /* Category gradients */
+    .card[data-category="job"]::before { background: var(--grad-job); }
+    .card[data-category="redtape"]::before { background: var(--grad-redtape); }
+    .card[data-category="school"]::before { background: var(--grad-school); }
+    .card[data-category="learning"]::before { background: var(--grad-learning); }
+    .card[data-category="social"]::before { background: var(--grad-social); }
+    .card[data-category="investment"]::before { background: var(--grad-investment); }
+    .card[data-category="health"]::before { background: var(--grad-health); }
+    .card[data-category="other"]::before { background: var(--grad-other); }
+
+    .card-title {
+      font-weight: 500;
+      font-size: 14px;
+      line-height: 1.4;
+      margin-bottom: 10px;
+      padding-top: 4px;
+    }
+
+    .card-meta {
+      display: flex;
+      gap: 8px;
+      font-size: 12px;
+      flex-wrap: wrap;
+    }
+
+    .card-category {
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-weight: 500;
+    }
+
+    .card[data-category="job"] .card-category { background: rgba(255,107,107,0.2); color: #ff6b6b; }
+    .card[data-category="redtape"] .card-category { background: rgba(255,169,77,0.2); color: #ffa94d; }
+    .card[data-category="school"] .card-category { background: rgba(116,192,252,0.2); color: #74c0fc; }
+    .card[data-category="learning"] .card-category { background: rgba(99,230,190,0.2); color: #63e6be; }
+    .card[data-category="social"] .card-category { background: rgba(218,119,242,0.2); color: #da77f2; }
+    .card[data-category="investment"] .card-category { background: rgba(169,227,75,0.2); color: #a9e34b; }
+    .card[data-category="health"] .card-category { background: rgba(247,131,172,0.2); color: #f783ac; }
+    .card[data-category="other"] .card-category { background: rgba(134,142,150,0.2); color: #868e96; }
+
+    .card-effort {
+      padding: 4px 10px;
+      background: var(--surface);
+      border-radius: 12px;
+      color: var(--text-muted);
+    }
+
+    .card-description {
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      display: none;
+    }
+
+    .card:focus .card-description { display: block; }
+
+    .card.editing .card-title {
+      outline: none;
+      background: var(--surface);
+      padding: 6px 10px;
+      margin: -6px -10px 4px;
+      border-radius: var(--radius-sm);
+    }
+
+    /* Quick Add */
+    .quick-add {
+      padding: var(--sp);
+      background: var(--surface-2);
+      border: 2px dashed #74c0fc;
+      border-radius: var(--radius);
+    }
+
+    .quick-add input {
+      width: 100%;
+      border: none;
+      background: transparent;
+      font: inherit;
+      font-size: 14px;
+      color: var(--text);
+      outline: none;
+    }
+
+    .quick-add input::placeholder {
+      color: var(--text-muted);
+    }
+
+    /* Help Overlay */
+    #help-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    #help-overlay.hidden { display: none; }
+
+    .help-content {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      max-width: 640px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .help-content h2 {
+      font-size: 18px;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .help-content h3 {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin: 16px 0 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .help-content table {
+      width: 100%;
+      font-size: 13px;
+    }
+
+    .help-content td {
+      padding: 6px 0;
+    }
+
+    .help-content td:first-child {
+      width: 45%;
+      color: var(--text-muted);
+    }
+
+    .help-content kbd {
+      display: inline-block;
+      padding: 3px 8px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 12px;
+    }
+
+    @media (max-width: 768px) {
+      :root { --column-width: 280px; }
+      #filters { display: none; }
+      #board { scroll-snap-type: x mandatory; }
+      .column { scroll-snap-align: start; }
+    }
+  </style>
+</head>
+<body>
+  <header id="header">
+    <h1>Kanban</h1>
+    <div id="filters"></div>
+    <button id="help-btn" title="Keyboard shortcuts (?)">?</button>
+  </header>
+
+  <main id="board">
+    <div class="column" data-column="inbox">
+      <div class="column-header">
+        <span class="column-title">Inbox</span>
+        <span class="column-count">0</span>
+      </div>
+      <div class="column-cards"></div>
+    </div>
+    <div class="column" data-column="now">
+      <div class="column-header">
+        <span class="column-title">Now</span>
+        <span class="column-count">0</span>
+      </div>
+      <div class="column-cards"></div>
+    </div>
+    <div class="column" data-column="next">
+      <div class="column-header">
+        <span class="column-title">Next</span>
+        <span class="column-count">0</span>
+      </div>
+      <div class="column-cards"></div>
+    </div>
+    <div class="column" data-column="later">
+      <div class="column-header">
+        <span class="column-title">Later</span>
+        <span class="column-count">0</span>
+      </div>
+      <div class="column-cards"></div>
+    </div>
+    <div class="column" data-column="done">
+      <div class="column-header">
+        <span class="column-title">Done</span>
+        <span class="column-count">0</span>
+      </div>
+      <div class="column-cards"></div>
+    </div>
+  </main>
+
+  <div id="chord-indicator"></div>
+  <div id="help-overlay" class="hidden"></div>
+
+  <script>
+    const CONFIG = {
+      STORAGE_KEY: 'kanban_visual_v1',
+      COLUMNS: ['inbox', 'now', 'next', 'later', 'done'],
+      CATEGORIES: {
+        job: { label: 'Job Sprint' },
+        redtape: { label: 'Red Tape' },
+        school: { label: 'School' },
+        learning: { label: 'Learning' },
+        social: { label: 'Social' },
+        investment: { label: 'Investment' },
+        health: { label: 'Health' },
+        other: { label: 'Other' }
+      }
+    };
+
+    const state = {
+      cards: [],
+      activeFilters: [],
+      focusedColumn: 0,
+      focusedCard: null,
+      isEditing: false,
+      pendingChord: null
+    };
+
+    // Data Model
+    function createCard(title, column = 'inbox', category = 'other') {
+      return {
+        id: crypto.randomUUID(),
+        title: title.trim(),
+        description: '',
+        column,
+        category,
+        effort: null,
+        created: Date.now(),
+        modified: Date.now(),
+        order: getCardsInColumn(column).length
+      };
+    }
+
+    function updateCard(id, updates) {
+      const card = state.cards.find(c => c.id === id);
+      if (card) {
+        Object.assign(card, updates, { modified: Date.now() });
+        save();
+        render();
+      }
+    }
+
+    function deleteCard(id) {
+      const index = state.cards.findIndex(c => c.id === id);
+      if (index !== -1) {
+        const column = state.cards[index].column;
+        state.cards.splice(index, 1);
+        reorderColumn(column);
+        save();
+        render();
+      }
+    }
+
+    function moveCard(id, toColumn, toIndex = null) {
+      const card = state.cards.find(c => c.id === id);
+      if (!card) return;
+      const fromColumn = card.column;
+      card.column = toColumn;
+      card.modified = Date.now();
+      reorderColumn(fromColumn);
+      const columnCards = getCardsInColumn(toColumn).filter(c => c.id !== id);
+      if (toIndex !== null && toIndex < columnCards.length) {
+        columnCards.splice(toIndex, 0, card);
+        columnCards.forEach((c, i) => c.order = i);
+      } else {
+        card.order = columnCards.length;
+      }
+      save();
+      render();
+    }
+
+    function getCardsInColumn(column) {
+      return state.cards.filter(c => c.column === column).sort((a, b) => a.order - b.order);
+    }
+
+    function reorderColumn(column) {
+      getCardsInColumn(column).forEach((card, i) => card.order = i);
+    }
+
+    // Persistence
+    function save() {
+      localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify({ version: 1, cards: state.cards }));
+    }
+
+    function load() {
+      try {
+        const data = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY));
+        if (data?.version === 1) state.cards = data.cards || [];
+      } catch (e) { state.cards = []; }
+    }
+
+    // Rendering
+    function render() {
+      CONFIG.COLUMNS.forEach(renderColumn);
+      updateFilterButtons();
+      updateCounts();
+    }
+
+    function renderColumn(columnKey) {
+      const container = document.querySelector(`.column[data-column="${columnKey}"] .column-cards`);
+      if (!container) return;
+      let cards = getCardsInColumn(columnKey);
+      if (state.activeFilters.length > 0) {
+        cards = cards.filter(c => state.activeFilters.includes(c.category));
+      }
+      container.innerHTML = '';
+      cards.forEach(card => container.appendChild(renderCard(card)));
+    }
+
+    function renderCard(card) {
+      const el = document.createElement('div');
+      el.className = 'card' + (state.focusedCard === card.id ? ' selected' : '');
+      el.dataset.id = card.id;
+      el.dataset.category = card.category;
+      el.draggable = true;
+      el.tabIndex = 0;
+      el.innerHTML = `
+        <div class="card-title">${escapeHtml(card.title)}</div>
+        <div class="card-meta">
+          <span class="card-category">${CONFIG.CATEGORIES[card.category]?.label || 'Other'}</span>
+          ${card.effort ? `<span class="card-effort">${card.effort}</span>` : ''}
+        </div>
+        ${card.description ? `<div class="card-description">${escapeHtml(card.description)}</div>` : ''}
+      `;
+      return el;
+    }
+
+    function updateCounts() {
+      CONFIG.COLUMNS.forEach(col => {
+        const el = document.querySelector(`.column[data-column="${col}"] .column-count`);
+        if (el) el.textContent = getCardsInColumn(col).length;
+      });
+    }
+
+    function updateFilterButtons() {
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.toggle('active', state.activeFilters.includes(btn.dataset.category));
+      });
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    // Drag & Drop
+    let draggedCard = null;
+
+    function initDragDrop() {
+      document.addEventListener('dragstart', e => {
+        const card = e.target.closest('.card');
+        if (!card) return;
+        draggedCard = card.dataset.id;
+        card.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+
+      document.addEventListener('dragend', e => {
+        const card = e.target.closest('.card');
+        if (card) card.classList.remove('dragging');
+        document.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+        draggedCard = null;
+      });
+
+      document.addEventListener('dragover', e => {
+        e.preventDefault();
+        const column = e.target.closest('.column');
+        if (column && draggedCard) {
+          document.querySelectorAll('.column').forEach(c => c.classList.remove('drop-target'));
+          column.classList.add('drop-target');
+        }
+      });
+
+      document.addEventListener('drop', e => {
+        e.preventDefault();
+        const column = e.target.closest('.column');
+        if (!column || !draggedCard) return;
+        const toColumn = column.dataset.column;
+        const cards = column.querySelectorAll('.card');
+        let dropIndex = cards.length;
+        for (let i = 0; i < cards.length; i++) {
+          const rect = cards[i].getBoundingClientRect();
+          if (e.clientY < rect.top + rect.height / 2) { dropIndex = i; break; }
+        }
+        moveCard(draggedCard, toColumn, dropIndex);
+        column.classList.remove('drop-target');
+      });
+    }
+
+    // Keyboard
+    function initKeyboard() {
+      document.addEventListener('keydown', handleKeydown);
+    }
+
+    function handleKeydown(e) {
+      if (e.target.matches('input, textarea, [contenteditable="true"]')) {
+        if (e.key === 'Escape') { cancelEdit(); e.target.blur(); }
+        else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); confirmEdit(); }
+        return;
+      }
+
+      if (state.pendingChord) {
+        handleChord(state.pendingChord, e.key);
+        state.pendingChord = null;
+        hideChordIndicator();
+        e.preventDefault();
+        return;
+      }
+
+      switch (e.key) {
+        case '?': toggleHelp(); e.preventDefault(); break;
+        case 'Escape':
+          if (!document.getElementById('help-overlay').classList.contains('hidden')) toggleHelp();
+          else if (state.activeFilters.length > 0) clearFilters();
+          else if (state.focusedCard) { state.focusedCard = null; render(); }
+          break;
+        case 'a': startQuickAdd(); e.preventDefault(); break;
+        case 'h': case 'ArrowLeft': navigateColumn(-1); e.preventDefault(); break;
+        case 'l': case 'ArrowRight': navigateColumn(1); e.preventDefault(); break;
+        case 'j': case 'ArrowDown': navigateCard(1); e.preventDefault(); break;
+        case 'k': case 'ArrowUp': navigateCard(-1); e.preventDefault(); break;
+        case 'Enter': if (state.focusedCard) { startEdit(); e.preventDefault(); } break;
+        case ' ':
+          if (state.focusedCard) { moveCardToAdjacentColumn(e.shiftKey ? -1 : 1); e.preventDefault(); }
+          break;
+        case 'Backspace': case 'Delete':
+          if (state.focusedCard && confirm('Delete this card?')) {
+            deleteCard(state.focusedCard);
+            state.focusedCard = null;
+          }
+          e.preventDefault();
+          break;
+        case 'c': state.pendingChord = 'c'; showChordIndicator('Category: j r s l o i h'); e.preventDefault(); break;
+        case 'e': state.pendingChord = 'e'; showChordIndicator('Effort: 1-6 or 0 to clear'); e.preventDefault(); break;
+        case 'f': state.pendingChord = 'f'; showChordIndicator('Filter: j r s l o i h | f=clear'); e.preventDefault(); break;
+        case 'g': state.pendingChord = 'g'; showChordIndicator('Go: i=Inbox n=Now x=Next l=Later d=Done'); e.preventDefault(); break;
+      }
+    }
+
+    function handleChord(chord, key) {
+      const catMap = { j: 'job', r: 'redtape', s: 'school', l: 'learning', o: 'social', i: 'investment', h: 'health' };
+      const colMap = { i: 0, n: 1, x: 2, l: 3, d: 4 };
+      const effortMap = { '1': '15m', '2': '1h', '3': '4h', '4': '1d', '5': '3d', '6': '1w', '0': null };
+
+      if (chord === 'g' && key in colMap) {
+        state.focusedColumn = colMap[key];
+        state.focusedCard = null;
+        updateColumnFocus();
+        const cards = getVisibleCardsInColumn(CONFIG.COLUMNS[state.focusedColumn]);
+        if (cards.length) { state.focusedCard = cards[0].id; render(); focusCard(state.focusedCard); }
+      } else if (chord === 'c' && state.focusedCard && key in catMap) {
+        updateCard(state.focusedCard, { category: catMap[key] });
+      } else if (chord === 'e' && state.focusedCard && key in effortMap) {
+        updateCard(state.focusedCard, { effort: effortMap[key] });
+      } else if (chord === 'f') {
+        if (key === 'f') clearFilters();
+        else if (key in catMap) toggleFilter(catMap[key]);
+      }
+    }
+
+    function showChordIndicator(text) {
+      const el = document.getElementById('chord-indicator');
+      el.textContent = text;
+      el.classList.add('visible');
+    }
+
+    function hideChordIndicator() {
+      document.getElementById('chord-indicator').classList.remove('visible');
+    }
+
+    // Navigation
+    function navigateColumn(delta) {
+      state.focusedColumn = Math.max(0, Math.min(CONFIG.COLUMNS.length - 1, state.focusedColumn + delta));
+      state.focusedCard = null;
+      updateColumnFocus();
+      const cards = getVisibleCardsInColumn(CONFIG.COLUMNS[state.focusedColumn]);
+      if (cards.length) { state.focusedCard = cards[0].id; render(); focusCard(state.focusedCard); }
+      else render();
+    }
+
+    function navigateCard(delta) {
+      const cards = getVisibleCardsInColumn(CONFIG.COLUMNS[state.focusedColumn]);
+      if (!cards.length) return;
+      let idx = cards.findIndex(c => c.id === state.focusedCard);
+      if (idx === -1) idx = delta > 0 ? -1 : cards.length;
+      idx = Math.max(0, Math.min(cards.length - 1, idx + delta));
+      state.focusedCard = cards[idx].id;
+      render();
+      focusCard(state.focusedCard);
+    }
+
+    function getVisibleCardsInColumn(column) {
+      let cards = getCardsInColumn(column);
+      if (state.activeFilters.length) cards = cards.filter(c => state.activeFilters.includes(c.category));
+      return cards;
+    }
+
+    function updateColumnFocus() {
+      document.querySelectorAll('.column').forEach((col, i) => col.classList.toggle('focused', i === state.focusedColumn));
+    }
+
+    function focusCard(id) {
+      const el = document.querySelector(`.card[data-id="${id}"]`);
+      if (el) { el.focus(); el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+    }
+
+    function moveCardToAdjacentColumn(delta) {
+      const card = state.cards.find(c => c.id === state.focusedCard);
+      if (!card) return;
+      const idx = CONFIG.COLUMNS.indexOf(card.column);
+      const newIdx = Math.max(0, Math.min(CONFIG.COLUMNS.length - 1, idx + delta));
+      if (newIdx !== idx) {
+        moveCard(card.id, CONFIG.COLUMNS[newIdx]);
+        state.focusedColumn = newIdx;
+        updateColumnFocus();
+        focusCard(card.id);
+      }
+    }
+
+    // Filtering
+    function toggleFilter(category) {
+      const idx = state.activeFilters.indexOf(category);
+      if (idx === -1) state.activeFilters.push(category);
+      else state.activeFilters.splice(idx, 1);
+      render();
+    }
+
+    function clearFilters() { state.activeFilters = []; render(); }
+
+    function initFilters() {
+      document.getElementById('filters').innerHTML = Object.entries(CONFIG.CATEGORIES)
+        .map(([key, { label }]) => `
+          <button class="filter-btn" data-category="${key}">
+            <span class="filter-dot" style="background: var(--grad-${key})"></span>
+            ${label.split(' ')[0]}
+          </button>
+        `).join('');
+      document.getElementById('filters').addEventListener('click', e => {
+        const btn = e.target.closest('.filter-btn');
+        if (btn) toggleFilter(btn.dataset.category);
+      });
+    }
+
+    // Quick Add
+    function startQuickAdd() {
+      const columnKey = CONFIG.COLUMNS[state.focusedColumn];
+      const container = document.querySelector(`.column[data-column="${columnKey}"] .column-cards`);
+      const existing = container.querySelector('.quick-add');
+      if (existing) existing.remove();
+      const quickAdd = document.createElement('div');
+      quickAdd.className = 'quick-add';
+      quickAdd.innerHTML = `<input type="text" placeholder="New card..." autofocus>`;
+      container.prepend(quickAdd);
+      const input = quickAdd.querySelector('input');
+      input.focus();
+      const cleanup = () => quickAdd.parentNode && quickAdd.remove();
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && input.value.trim()) {
+          const card = createCard(input.value, columnKey);
+          state.cards.push(card);
+          save(); cleanup(); render();
+          state.focusedCard = card.id;
+          focusCard(card.id);
+          e.stopPropagation();
+        } else if (e.key === 'Escape') { cleanup(); e.stopPropagation(); }
+      });
+      input.addEventListener('blur', () => setTimeout(cleanup, 150));
+    }
+
+    // Editing
+    function startEdit() {
+      const el = document.querySelector(`.card[data-id="${state.focusedCard}"] .card-title`);
+      if (!el) return;
+      state.isEditing = true;
+      el.contentEditable = 'true';
+      el.focus();
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      el.closest('.card').classList.add('editing');
+    }
+
+    function confirmEdit() {
+      const el = document.querySelector(`.card[data-id="${state.focusedCard}"] .card-title`);
+      if (!el) return;
+      const title = el.textContent.trim();
+      if (title) updateCard(state.focusedCard, { title });
+      el.contentEditable = 'false';
+      el.closest('.card')?.classList.remove('editing');
+      state.isEditing = false;
+      focusCard(state.focusedCard);
+    }
+
+    function cancelEdit() {
+      const el = document.querySelector(`.card[data-id="${state.focusedCard}"] .card-title`);
+      if (!el) return;
+      el.contentEditable = 'false';
+      el.closest('.card')?.classList.remove('editing');
+      state.isEditing = false;
+      render();
+      focusCard(state.focusedCard);
+    }
+
+    // Help
+    function toggleHelp() {
+      document.getElementById('help-overlay').classList.toggle('hidden');
+    }
+
+    function initHelp() {
+      document.getElementById('help-btn').addEventListener('click', toggleHelp);
+      document.getElementById('help-overlay').innerHTML = `
+        <div class="help-content">
+          <h2>Keyboard Shortcuts</h2>
+          <h3>Navigation</h3>
+          <table>
+            <tr><td><kbd>h</kbd> <kbd>l</kbd></td><td>Move between columns</td></tr>
+            <tr><td><kbd>j</kbd> <kbd>k</kbd></td><td>Move between cards</td></tr>
+            <tr><td><kbd>g</kbd> + <kbd>i/n/x/l/d</kbd></td><td>Jump to column</td></tr>
+          </table>
+          <h3>Actions</h3>
+          <table>
+            <tr><td><kbd>a</kbd></td><td>Add card</td></tr>
+            <tr><td><kbd>Enter</kbd></td><td>Edit card</td></tr>
+            <tr><td><kbd>Space</kbd></td><td>Move card right</td></tr>
+            <tr><td><kbd>Shift+Space</kbd></td><td>Move card left</td></tr>
+            <tr><td><kbd>Delete</kbd></td><td>Delete card</td></tr>
+          </table>
+          <h3>Modifiers</h3>
+          <table>
+            <tr><td><kbd>c</kbd> + key</td><td>Set category</td></tr>
+            <tr><td><kbd>e</kbd> + 1-6</td><td>Set effort</td></tr>
+            <tr><td><kbd>f</kbd> + key</td><td>Toggle filter</td></tr>
+          </table>
+          <p style="margin-top:16px;text-align:center;color:var(--text-muted);font-size:12px">Press <kbd>?</kbd> or <kbd>Esc</kbd> to close</p>
+        </div>
+      `;
+      document.getElementById('help-overlay').addEventListener('click', e => {
+        if (e.target === document.getElementById('help-overlay')) toggleHelp();
+      });
+    }
+
+    // Init
+    function init() {
+      load();
+      initFilters();
+      initDragDrop();
+      initKeyboard();
+      initHelp();
+      render();
+      updateColumnFocus();
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>

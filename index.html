@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kanban</title>
+  <title>KANBAN | カンバン</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@300;400&display=swap" rel="stylesheet">
   <style>
     :root {
       --paper: #FFFCF0;
@@ -82,11 +82,31 @@
       background: var(--paper);
     }
     #header h1 {
-      font-size: 10px;
+      font-size: 11px;
       font-weight: 600;
+      color: var(--ink);
+      letter-spacing: 3px;
+      display: flex;
+      align-items: center;
+      gap: 0;
+    }
+    #header h1 .en {
+      letter-spacing: 3px;
+    }
+    #header h1 .sep {
+      margin: 0 12px;
+      padding: 0 2px;
       color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 2px;
+      font-weight: 200;
+      letter-spacing: 0;
+      opacity: 0.4;
+    }
+    #header h1 .jp {
+      font-family: 'Noto Sans JP', sans-serif;
+      font-weight: 300;
+      font-size: 10px;
+      letter-spacing: 1px;
+      color: var(--muted);
     }
     #filters {
       display: flex;
@@ -813,6 +833,8 @@
         gap: 8px;
       }
       #header h1 { font-size: 11px; }
+      #header h1 .sep { margin: 0 8px; }
+      #header h1 .jp { font-size: 9px; }
       #filters { display: none; }
       #help-btn { width: 28px; height: 28px; font-size: 12px; }
 
@@ -1015,7 +1037,7 @@
 </head>
 <body>
   <header id="header">
-    <h1>Kanban</h1>
+    <h1><span class="en">KANBAN</span><span class="sep">|</span><span class="jp">カンバン</span></h1>
     <div id="filters"></div>
     <span id="sync-status" class="sync-status" title="Local only"></span>
     <button id="help-btn">?</button>
